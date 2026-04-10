@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AccountType } from '@prisma/client';
+import { AccountType } from '../common/constants/account.constants';
 
 @Injectable()
 export class RbacService {
@@ -79,7 +79,7 @@ export class RbacService {
         icon: 'user',
         title: '用户管理',
         permissions: ['user.read'],
-        roles: [AccountType.ADMIN],
+        roles: ['ADMIN'],
       },
       {
         path: '/students',

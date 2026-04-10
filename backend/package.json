@@ -4,7 +4,7 @@
   "description": "IT&D Management System Backend",
   "main": "dist/main.js",
   "scripts": {
-    "build": "nest build",
+    "build": "tsc -p tsconfig.json",
     "start": "nest start",
     "dev": "nest start --watch",
     "start:prod": "node dist/main",

@@ -4,7 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles, CurrentUser } from '../common/decorators/current-user.decorator';
 import { RbacService } from './rbac.service';
-import { AccountType } from '@prisma/client';
+import { AccountType } from '../common/constants/account.constants';
 
 @ApiTags('权限管理')
 @Controller('rbac')
@@ -15,7 +15,7 @@ export class RbacController {
 
   @Get('permissions')
   @UseGuards(RolesGuard)
-  @Roles(AccountType.ADMIN)
+  @Roles('ADMIN')
   @ApiOperation({ summary: '获取所有权限列表' })
   getAllPermissions() {
     return this.rbacService.getAllPermissions();
@@ -23,7 +23,7 @@ export class RbacController {
 
   @Get('permissions/:accountType')
   @UseGuards(RolesGuard)
-  @Roles(AccountType.ADMIN)
+  @Roles('ADMIN')
   @ApiOperation({ summary: '获取角色权限' })
   getRolePermissions(@Param('accountType') accountType: AccountType) {
     return this.rbacService.getRolePermissions(accountType);
@@ -31,7 +31,7 @@ export class RbacController {
 
   @Put('permissions/:accountType')
   @UseGuards(RolesGuard)
-  @Roles(AccountType.ADMIN)
+  @Roles('ADMIN')
   @ApiOperation({ summary: '更新角色权限' })
   updateRolePermissions(
     @Param('accountType') accountType: AccountType,
