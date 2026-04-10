@@ -50,8 +50,8 @@ export class AuthService {
       throw new BadRequestException('邮箱已被注册');
     }
 
-    // 非 TEACHER 角色不允许自主注册
-    const allowedSelfRegister = ['TEACHER'];
+    // 允许自主注册的身份（注册后需管理员审批）
+    const allowedSelfRegister = ['TEACHER', 'STUDENT', 'STUDENT_STAFF'];
     if (!allowedSelfRegister.includes(data.accountType)) {
       throw new BadRequestException('不允许自主注册此角色，请联系管理员');
     }

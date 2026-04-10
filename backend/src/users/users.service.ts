@@ -7,6 +7,65 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
+  // 管理员创建用户（直接创建已激活的账号）
+  async create(data: {
+    username: string;
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+    accountType: AccountType;
+  }) {
+    // 检查用户名是否已存在
+    const existingUser = await this.prisma.user.findUnique({
+      where: { username: data.username },
+    });
+    if (existingUser) {
+      throw new BadRequestException('用户名已存在');
+    }
+
+    // 检查邮箱是否已存在
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existingEmail) {
+      throw new BadRequestException('邮箱已被注册');
+    }
+
+    // 加密密码
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    // 创建用户和账号
+    const user = await this.prisma.user.create({
+      data: {
+        username: data.username,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        account: {
+          create: {
+            password: hashedPassword,
+            accountType: data.accountType,
+            status: 'ACTIVE', // 管理员创建的账号直接激活
+          },
+        },
+      },
+      include: { account: true },
+    });
+
+    return {
+      message: '账号创建成功',
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        accountType: user.account.accountType,
+        status: user.account.status,
+      },
+    };
+  }
+
   // 获取用户列表
   async findAll(params: {
     page?: number;

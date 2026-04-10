@@ -2,7 +2,10 @@
   <div class="users-page">
     <div class="page-header">
       <h2>用户管理</h2>
-      <el-button type="primary" @click="handleRefresh">刷新</el-button>
+      <div class="header-actions">
+        <el-button type="primary" @click="handleCreate">创建账号</el-button>
+        <el-button type="primary" @click="handleRefresh">刷新</el-button>
+      </div>
     </div>
 
     <el-card class="filter-card">
@@ -58,11 +61,19 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="200">
+        <el-table-column label="操作" fixed="right" width="280">
           <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button 
-              size="small" 
+            <el-button size="small" type="warning" @click="handleEdit(row)">编辑</el-button>
+            <el-button
+              v-if="row.account.status === 'PENDING_APPROVAL'"
+              size="small"
+              type="success"
+              @click="handleApprove(row)"
+            >
+              审批
+            </el-button>
+            <el-button
+              size="small"
               :type="row.account.status === 'ACTIVE' ? 'danger' : 'success'"
               @click="handleToggleStatus(row)"
             >
@@ -87,8 +98,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElMessageBox as MB } from 'element-plus'
 import axios from 'axios'
+import type { FormInstance, FormRules } from 'element-plus'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
@@ -105,6 +117,41 @@ api.interceptors.request.use((config) => {
 const users = ref<any[]>([])
 const loading = ref(false)
 
+// 创建账号对话框
+const createDialogVisible = ref(false)
+const createFormRef = ref<FormInstance>()
+const createLoading = ref(false)
+
+const createForm = reactive({
+  username: '',
+  name: '',
+  email: '',
+  phone: '',
+  password: '',
+  accountType: 'TEACHER'
+})
+
+const createRules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度为 3-20 个字符', trigger: 'blur' }
+  ],
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码至少 6 个字符', trigger: 'blur' }
+  ],
+  accountType: [{ required: true, message: '请选择身份', trigger: 'change' }]
+}
+
 const filters = reactive({
   accountType: '',
   status: '',
@@ -116,6 +163,61 @@ const pagination = reactive({
   pageSize: 10,
   total: 0
 })
+
+// 打开创建账号对话框
+const handleCreate = () => {
+  createForm.username = ''
+  createForm.name = ''
+  createForm.email = ''
+  createForm.phone = ''
+  createForm.password = ''
+  createForm.accountType = 'TEACHER'
+  createDialogVisible.value = true
+}
+
+// 提交创建账号
+const submitCreate = async () => {
+  const valid = await createFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  createLoading.value = true
+  try {
+    await api.post('/users', {
+      username: createForm.username,
+      name: createForm.name,
+      email: createForm.email,
+      phone: createForm.phone,
+      password: createForm.password,
+      accountType: createForm.accountType
+    })
+    ElMessage.success('账号创建成功')
+    createDialogVisible.value = false
+    fetchUsers()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || error.message || '创建失败')
+  } finally {
+    createLoading.value = false
+  }
+}
+
+// 审批账号
+const handleApprove = async (row: any) => {
+  try {
+    await MB.confirm(`确定要审批通过用户 ${row.username} 吗？审批通过后该账号将可以直接登录。`, '审批账号', {
+      confirmButtonText: '确定审批',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    await api.put(`/users/${row.id}/approve`)
+    ElMessage.success('审批成功，账号已激活')
+    fetchUsers()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.response?.data?.message || error.message || '审批失败')
+    }
+  }
+}
 
 const fetchUsers = async () => {
   loading.value = true

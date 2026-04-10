@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -12,6 +12,21 @@ import { AccountType, AccountStatus, ACCOUNT_TYPE_LIST, ACCOUNT_STATUS_LIST } fr
 @ApiBearerAuth()
 export class UsersController {
   constructor(private usersService: UsersService) {}
+
+  @Post()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: '管理员创建用户' })
+  create(@Body() data: {
+    username: string;
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+    accountType: AccountType;
+  }) {
+    return this.usersService.create(data);
+  }
 
   @Get()
   @UseGuards(RolesGuard)
@@ -55,6 +70,14 @@ export class UsersController {
     @Body() data: { name?: string; email?: string; phone?: string; accountType?: AccountType },
   ) {
     return this.usersService.update(id, data);
+  }
+
+  @Put(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: '审批账号（通过）' })
+  approve(@Param('id') id: string) {
+    return this.usersService.updateStatus(id, 'ACTIVE');
   }
 
   @Put(':id/status')
