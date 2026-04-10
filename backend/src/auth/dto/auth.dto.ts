@@ -57,6 +57,14 @@ export class ChangePasswordDto {
 }
 
 export class ResetPasswordDto {
+  @ApiProperty({ description: '邮箱' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ description: '验证码' })
+  @IsString()
+  token: string;
+
   @ApiProperty({ description: '新密码' })
   @IsString()
   @MinLength(6)

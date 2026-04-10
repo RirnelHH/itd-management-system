@@ -3,6 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
+// 存储验证码的内存缓存（key: email, value: { code: string, expiresAt: Date }）
+const verificationCodes = new Map<string, { code: string; expiresAt: Date }>();
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -197,6 +200,78 @@ export class AuthService {
     });
 
     return { message: '密码修改成功' };
+  }
+
+  // 忘记密码 - 发送验证码
+  async forgotPassword(email: string) {
+    // 查找用户
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { account: true },
+    });
+
+    if (!user || !user.account) {
+      // 为了安全，即使用户不存在也返回成功，防止通过错误消息枚举用户
+      return { message: '如果邮箱已注册，验证码已发送' };
+    }
+
+    // 生成6位数字验证码
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // 15分钟后过期
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // 存储验证码
+    verificationCodes.set(email, { code, expiresAt });
+
+    // 打印验证码到控制台（用于测试）
+    console.log(`\n========================================`);
+    console.log(`【密码重置验证码】`);
+    console.log(`邮箱: ${email}`);
+    console.log(`验证码: ${code}`);
+    console.log(`15分钟内有效`);
+    console.log(`========================================\n`);
+
+    return { message: '如果邮箱已注册，验证码已发送' };
+  }
+
+  // 重置密码 - 验证验证码
+  async resetPassword(email: string, token: string, newPassword: string) {
+    // 查找用户
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { account: true },
+    });
+
+    if (!user || !user.account) {
+      throw new BadRequestException('用户不存在');
+    }
+
+    // 验证验证码
+    const stored = verificationCodes.get(email);
+    if (!stored) {
+      throw new BadRequestException('请先获取验证码');
+    }
+
+    if (stored.code !== token) {
+      throw new BadRequestException('验证码错误');
+    }
+
+    if (new Date() > stored.expiresAt) {
+      verificationCodes.delete(email);
+      throw new BadRequestException('验证码已过期，请重新获取');
+    }
+
+    // 更新密码
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.prisma.account.update({
+      where: { userId: user.id },
+      data: { password: hashedPassword },
+    });
+
+    // 删除已使用的验证码
+    verificationCodes.delete(email);
+
+    return { message: '密码重置成功，请使用新密码登录' };
   }
 
   // 管理员重置密码

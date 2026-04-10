@@ -34,11 +34,10 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '忘记密码' })
+  @ApiOperation({ summary: '忘记密码 - 发送验证码' })
   @ApiResponse({ status: 200, description: '邮件发送成功' })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
-    // TODO: 实现邮件发送功能
-    return { message: '请联系管理员重置密码' };
+    return this.authService.forgotPassword(dto.email);
   }
 
   @Get('profile')
@@ -60,12 +59,10 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '重置密码（需要邮箱验证 TODO）' })
+  @ApiOperation({ summary: '重置密码 - 验证验证码' })
+  @ApiResponse({ status: 200, description: '密码重置成功' })
   resetPassword(@Body() dto: ResetPasswordDto) {
-    // TODO: 实现邮件验证后的密码重置
-    return { message: '请联系管理员重置密码' };
+    return this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
   }
 }

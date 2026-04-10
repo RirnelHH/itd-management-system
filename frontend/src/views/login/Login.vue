@@ -58,10 +58,15 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import axios from 'axios'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
+})
 
 const formRef = ref()
 const loading = ref(false)
@@ -76,8 +81,64 @@ const rules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
-const handleForgotPassword = () => {
-  ElMessage.warning('请联系管理员重置密码')
+const handleForgotPassword = async () => {
+  try {
+    const email = await ElMessageBox.prompt(
+      '请输入您注册的邮箱地址，验证码将发送至该邮箱',
+      '忘记密码',
+      {
+        confirmButtonText: '发送验证码',
+        cancelButtonText: '取消',
+        inputPattern: /[\w.-]+@[\w.-]+\.\w+/,
+        inputErrorMessage: '请输入正确的邮箱格式'
+      }
+    )
+
+    if (!email.value) return
+
+    await api.post('/auth/forgot-password', { email: email.value })
+    ElMessage.success('验证码已发送，请查收邮件')
+
+    // 询问验证码和新密码
+    const tokenResult = await ElMessageBox.prompt(
+      '请输入邮箱中收到的6位验证码',
+      '输入验证码',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPattern: /^\d{6}$/,
+        inputErrorMessage: '验证码为6位数字'
+      }
+    )
+
+    if (!tokenResult.value) return
+
+    const newPasswordResult = await ElMessageBox.prompt(
+      '请输入新密码（至少6位）',
+      '设置新密码',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPattern: /^.{6,}$/,
+        inputErrorMessage: '密码至少6位'
+      }
+    )
+
+    if (!newPasswordResult.value) return
+
+    await api.post('/auth/reset-password', {
+      email: email.value,
+      token: tokenResult.value,
+      newPassword: newPasswordResult.value
+    })
+
+    ElMessage.success('密码重置成功，请使用新密码登录')
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.response?.data?.message || error.message || '操作失败')
+    }
+  }
 }
 
 const handleLogin = async () => {
