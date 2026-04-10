@@ -137,6 +137,16 @@ export class UsersService {
       throw new NotFoundException('用户不存在');
     }
 
+    if (data.email && data.email !== user.email) {
+      const existingEmail = await this.prisma.user.findUnique({
+        where: { email: data.email },
+      });
+
+      if (existingEmail && existingEmail.id !== id) {
+        throw new BadRequestException('邮箱已被注册');
+      }
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: {
@@ -191,10 +201,27 @@ export class UsersService {
   }
 
   // 删除用户
-  async remove(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+  async remove(requesterId: string, id: string) {
+    if (requesterId === id) {
+      throw new BadRequestException('不能删除当前登录账号');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { account: true },
+    });
     if (!user) {
       throw new NotFoundException('用户不存在');
+    }
+
+    if (user.account?.accountType === 'ADMIN') {
+      const adminCount = await this.prisma.account.count({
+        where: { accountType: 'ADMIN' },
+      });
+
+      if (adminCount <= 1) {
+        throw new BadRequestException('系统必须至少保留一个管理员账号');
+      }
     }
 
     await this.prisma.account.delete({ where: { userId: id } });

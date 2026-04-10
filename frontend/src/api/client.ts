@@ -1,11 +1,12 @@
 import axios from 'axios'
+import { readStoredToken } from '../auth/session'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = readStoredToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }

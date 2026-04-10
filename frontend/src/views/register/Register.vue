@@ -110,11 +110,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
-})
+import { fetchRegisterOptionsRequest, registerRequest } from '../../api/auth'
 
 const router = useRouter()
 
@@ -133,7 +129,7 @@ const accountTypeOptions = ref<AccountTypeOption[]>([])
 const fetchRegisterOptions = async () => {
   loadingOptions.value = true
   try {
-    const { data } = await api.get('/auth/register-options')
+    const data = await fetchRegisterOptionsRequest()
     accountTypeOptions.value = data
     if (data.length > 0) {
       form.accountType = data[0].value
@@ -204,7 +200,7 @@ const handleRegister = async () => {
 
   loading.value = true
   try {
-    const response = await api.post('/auth/register', {
+    const response = await registerRequest({
       username: form.username,
       name: form.name,
       email: form.email,

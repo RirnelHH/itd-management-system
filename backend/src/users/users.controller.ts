@@ -1,8 +1,8 @@
-import { Controller, Get, Put, Post, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/current-user.decorator';
+import { CurrentUser, Roles } from '../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { AccountType, AccountStatus, ACCOUNT_TYPE_LIST, ACCOUNT_STATUS_LIST } from '../common/constants/account.constants';
 
@@ -12,10 +12,6 @@ import { AccountType, AccountStatus, ACCOUNT_TYPE_LIST, ACCOUNT_STATUS_LIST } fr
 @ApiBearerAuth()
 export class UsersController {
   constructor(private usersService: UsersService) {}
-
-  private getUserId(req: any): string {
-    return req?.user?.userId || req?.user?.id || req?.user?.sub;
-  }
 
   @Post()
   @UseGuards(RolesGuard)
@@ -79,8 +75,8 @@ export class UsersController {
 
   @Put('me/privacy')
   @ApiOperation({ summary: '更新当前用户隐私设置' })
-  updateMyPrivacy(@Request() req, @Body() data: { phonePublic?: boolean; emailPublic?: boolean }) {
-    return this.usersService.updatePrivacySettings(this.getUserId(req), data);
+  updateMyPrivacy(@CurrentUser('userId') userId: string, @Body() data: { phonePublic?: boolean; emailPublic?: boolean }) {
+    return this.usersService.updatePrivacySettings(userId, data);
   }
 
   @Put(':id/privacy')
@@ -136,7 +132,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: '删除用户' })
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  remove(@CurrentUser('userId') requesterId: string, @Param('id') id: string) {
+    return this.usersService.remove(requesterId, id);
   }
 }

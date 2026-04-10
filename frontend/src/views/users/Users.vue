@@ -79,6 +79,7 @@
             >
               {{ row.account.status === 'ACTIVE' ? '禁用' : '启用' }}
             </el-button>
+            <el-button size="small" type="danger" plain @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -168,20 +169,21 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, ElMessageBox as MB } from 'element-plus'
-import axios from 'axios'
 import type { FormInstance, FormRules } from 'element-plus'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
-})
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+import {
+  approveUserRequest,
+  createUserRequest,
+  deleteUserRequest,
+  fetchUsersRequest,
+  updateUserRequest,
+  updateUserStatusRequest,
+} from '../../api/users'
+import {
+  getAccountTypeName,
+  getAccountTypeTag,
+  getStatusName,
+  getStatusTag,
+} from '../../constants/account'
 
 const users = ref<any[]>([])
 const loading = ref(false)
@@ -251,7 +253,7 @@ const submitCreate = async () => {
 
   createLoading.value = true
   try {
-    await api.post('/users', {
+    await createUserRequest({
       username: createForm.username,
       name: createForm.name,
       email: createForm.email,
@@ -314,7 +316,7 @@ const submitEdit = async () => {
 
   editLoading.value = true
   try {
-    await api.put(`/users/${editForm.id}`, {
+    await updateUserRequest(editForm.id, {
       name: editForm.name,
       email: editForm.email,
       phone: editForm.phone,
@@ -339,7 +341,7 @@ const handleApprove = async (row: any) => {
       type: 'warning'
     })
 
-    await api.put(`/users/${row.id}/approve`)
+    await approveUserRequest(row.id)
     ElMessage.success('审批成功，账号已激活')
     fetchUsers()
   } catch (error: any) {
@@ -360,7 +362,7 @@ const fetchUsers = async () => {
     if (filters.status) params.status = filters.status
     if (filters.keyword) params.keyword = filters.keyword
 
-    const { data } = await api.get('/users', { params })
+    const data = await fetchUsersRequest(params)
     users.value = data.list
     pagination.total = data.total
   } catch (error: any) {
@@ -399,7 +401,7 @@ const handleToggleStatus = async (row: any) => {
       type: 'warning'
     })
     
-    await api.put(`/users/${row.id}/status`, { status: newStatus })
+    await updateUserStatusRequest(row.id, newStatus)
     ElMessage.success(`${action}成功`)
     fetchUsers()
   } catch (error: any) {
@@ -409,46 +411,31 @@ const handleToggleStatus = async (row: any) => {
   }
 }
 
-const getAccountTypeName = (type: string) => {
-  const map: Record<string, string> = {
-    ADMIN: '管理员',
-    DIRECTOR: '主任',
-    VICE_DIRECTOR: '副主任',
-    GROUP_LEADER: '教研组长',
-    STUDENT_STAFF: '学生管理干事',
-    TEACHER: '教师'
-  }
-  return map[type] || type
-}
+const handleDelete = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要永久删除用户 ${row.username} 吗？该操作会删除账号和个人资料，且不可恢复。`,
+      '删除用户',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
 
-const getAccountTypeTag = (type: string) => {
-  const map: Record<string, string> = {
-    ADMIN: 'danger',
-    DIRECTOR: 'warning',
-    VICE_DIRECTOR: 'warning',
-    GROUP_LEADER: 'success',
-    STUDENT_STAFF: 'success',
-    TEACHER: 'info'
-  }
-  return map[type] || 'info'
-}
+    await deleteUserRequest(row.id)
+    ElMessage.success('用户已删除')
 
-const getStatusName = (status: string) => {
-  const map: Record<string, string> = {
-    PENDING_APPROVAL: '待审批',
-    ACTIVE: '正常',
-    DISABLED: '禁用'
-  }
-  return map[status] || status
-}
+    if (users.value.length === 1 && pagination.page > 1) {
+      pagination.page -= 1
+    }
 
-const getStatusTag = (status: string) => {
-  const map: Record<string, string> = {
-    PENDING_APPROVAL: 'warning',
-    ACTIVE: 'success',
-    DISABLED: 'danger'
+    fetchUsers()
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.response?.data?.message || error.message || '删除失败')
+    }
   }
-  return map[status] || 'info'
 }
 
 const formatDate = (date: string) => {

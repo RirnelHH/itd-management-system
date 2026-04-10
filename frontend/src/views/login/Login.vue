@@ -59,14 +59,10 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
+import { forgotPasswordRequest, resetPasswordRequest } from '../../api/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
-})
 
 const formRef = ref()
 const loading = ref(false)
@@ -96,7 +92,7 @@ const handleForgotPassword = async () => {
 
     if (!email.value) return
 
-    await api.post('/auth/forgot-password', { email: email.value })
+    await forgotPasswordRequest(email.value)
     ElMessage.success('验证码已发送，请查收邮件')
 
     // 询问验证码和新密码
@@ -127,7 +123,7 @@ const handleForgotPassword = async () => {
 
     if (!newPasswordResult.value) return
 
-    await api.post('/auth/reset-password', {
+    await resetPasswordRequest({
       email: email.value,
       token: tokenResult.value,
       newPassword: newPasswordResult.value

@@ -66,7 +66,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import api from '../../api/client'
+import { fetchPublicUsersRequest } from '../../api/users'
+import { getAccountTypeName } from '../../constants/account'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
@@ -82,19 +83,6 @@ const pagination = reactive({
   total: 0
 })
 
-const getAccountTypeName = (type: string) => {
-  const names: Record<string, string> = {
-    ADMIN: '管理员',
-    DIRECTOR: '主任',
-    VICE_DIRECTOR: '副主任',
-    GROUP_LEADER: '教研组长',
-    STUDENT_STAFF: '学生管理干事',
-    TEACHER: '教师',
-    STUDENT: '学生'
-  }
-  return names[type] || type
-}
-
 const fetchContacts = async () => {
   loading.value = true
   try {
@@ -105,10 +93,10 @@ const fetchContacts = async () => {
     if (searchForm.keyword) params.keyword = searchForm.keyword
     if (searchForm.accountType) params.accountType = searchForm.accountType
 
-    const response = await api.get('/users/public', { params })
+    const response = await fetchPublicUsersRequest(params)
 
-    tableData.value = response.data.list || []
-    pagination.total = response.data.total || 0
+    tableData.value = response.list || []
+    pagination.total = response.total || 0
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || error.message || '获取通讯录失败')
   } finally {

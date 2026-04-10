@@ -118,7 +118,9 @@ import { useAuthStore } from '../../stores/auth'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { UserFilled } from '@element-plus/icons-vue'
-import api from '../../api/client'
+import { updateProfileRequest } from '../../api/auth'
+import { updateMyPrivacyRequest } from '../../api/users'
+import { getAccountTypeName } from '../../constants/account'
 
 const authStore = useAuthStore()
 const formRef = ref<FormInstance>()
@@ -175,19 +177,6 @@ const passwordRules: FormRules = {
   ]
 }
 
-const getAccountTypeName = (type: string) => {
-  const names: Record<string, string> = {
-    ADMIN: '管理员',
-    DIRECTOR: '主任',
-    VICE_DIRECTOR: '副主任',
-    GROUP_LEADER: '教研组长',
-    STUDENT_STAFF: '学生管理干事',
-    TEACHER: '教师',
-    STUDENT: '学生'
-  }
-  return names[type] || type
-}
-
 const applyUserInfoToForm = (userInfo: any) => {
   form.username = userInfo?.username || ''
   form.name = userInfo?.name || ''
@@ -210,7 +199,7 @@ const handleUpdateProfile = async () => {
 
   profileSaving.value = true
   try {
-    await api.put('/auth/profile', {
+    await updateProfileRequest({
       name: form.name,
       email: form.email,
       phone: form.phone || undefined
@@ -242,7 +231,7 @@ const handleChangePassword = async () => {
 
 const handleUpdatePrivacy = async () => {
   try {
-    await api.put('/users/me/privacy', {
+    await updateMyPrivacyRequest({
       phonePublic: privacyForm.phonePublic,
       emailPublic: privacyForm.emailPublic
     })
