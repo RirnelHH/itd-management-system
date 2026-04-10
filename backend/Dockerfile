@@ -6,6 +6,13 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# 安装构建所需的基础工具和 OpenSSL（Prisma 需要）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    libssl-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 # 安装依赖
 COPY package*.json ./
 RUN npm install
@@ -24,6 +31,12 @@ FROM node:20-slim AS runner
 
 WORKDIR /app
 
+# 安装运行所需的基础工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    libssl1.1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # 创建非 root 用户
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
@@ -34,6 +47,7 @@ RUN npm install --omit=dev && npm cache clean --force
 # 从构建阶段复制构建产物
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma ./prisma
 
 # 设置用户
