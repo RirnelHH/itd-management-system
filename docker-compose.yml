@@ -51,6 +51,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://itd-backend:3000/api/v1
     container_name: itd-frontend
     restart: always
     ports:
