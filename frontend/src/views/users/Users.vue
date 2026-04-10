@@ -93,6 +93,42 @@
         @current-change="handlePageChange"
       />
     </el-card>
+
+    <!-- 创建账号对话框 -->
+    <el-dialog v-model="createDialogVisible" title="创建账号" width="500px" destroy-on-close>
+      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="100px">
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="createForm.username" placeholder="请输入用户名" />
+        </el-form-item>
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="createForm.name" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="createForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="createForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input v-model="createForm.password" type="password" placeholder="请输入密码" show-password />
+        </el-form-item>
+        <el-form-item label="身份" prop="accountType">
+          <el-select v-model="createForm.accountType" placeholder="请选择身份" style="width: 100%">
+            <el-option label="管理员" value="ADMIN" />
+            <el-option label="主任" value="DIRECTOR" />
+            <el-option label="副主任" value="VICE_DIRECTOR" />
+            <el-option label="教研组长" value="GROUP_LEADER" />
+            <el-option label="学生管理干事" value="STUDENT_STAFF" />
+            <el-option label="教师" value="TEACHER" />
+            <el-option label="学生" value="STUDENT" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createLoading" @click="submitCreate">确定创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
