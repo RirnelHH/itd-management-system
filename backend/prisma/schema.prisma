@@ -17,6 +17,8 @@ model User {
   name      String
   email     String   @unique
   phone     String?
+  phonePublic Boolean @default(false)  // 手机号是否公开
+  emailPublic Boolean @default(false)  // 邮箱是否公开
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

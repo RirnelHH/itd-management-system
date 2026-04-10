@@ -59,6 +59,35 @@
     <el-card style="margin-top: 20px">
       <template #header>
         <div class="card-header">
+          <span>隐私设置</span>
+        </div>
+      </template>
+
+      <el-form label-width="120px">
+        <el-form-item label="公开手机号">
+          <el-switch
+            v-model="privacyForm.phonePublic"
+            active-text="公开"
+            inactive-text="不公开"
+            @change="handleUpdatePrivacy"
+          />
+          <div class="form-tip">开启后，其他用户可以在通讯录中查看您的手机号</div>
+        </el-form-item>
+        <el-form-item label="公开邮箱">
+          <el-switch
+            v-model="privacyForm.emailPublic"
+            active-text="公开"
+            inactive-text="不公开"
+            @change="handleUpdatePrivacy"
+          />
+          <div class="form-tip">开启后，其他用户可以在通讯录中查看您的邮箱</div>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card style="margin-top: 20px">
+      <template #header>
+        <div class="card-header">
           <span>修改密码</span>
         </div>
       </template>
@@ -92,6 +121,11 @@ import { useAuthStore } from '../../stores/auth'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { UserFilled } from '@element-plus/icons-vue'
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
+})
 
 const authStore = useAuthStore()
 const passwordFormRef = ref<FormInstance>()
@@ -103,6 +137,11 @@ const form = reactive({
   phone: '',
   accountType: '',
   status: ''
+})
+
+const privacyForm = reactive({
+  phonePublic: false,
+  emailPublic: false
 })
 
 const passwordForm = reactive({
@@ -163,7 +202,23 @@ const handleChangePassword = async () => {
   }
 }
 
-onMounted(() => {
+const handleUpdatePrivacy = async () => {
+  try {
+    const userId = authStore.userInfo?.id
+    if (!userId) return
+    await api.put(`/users/${userId}/privacy`, {
+      phonePublic: privacyForm.phonePublic,
+      emailPublic: privacyForm.emailPublic
+    }, {
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    })
+    ElMessage.success('隐私设置已更新')
+  } catch (error: any) {
+    ElMessage.error(error.message || '更新失败')
+  }
+}
+
+onMounted(async () => {
   // 从 authStore 获取用户信息
   const userInfo = authStore.userInfo
   if (userInfo) {
@@ -173,6 +228,25 @@ onMounted(() => {
     form.phone = userInfo.phone || ''
     form.accountType = userInfo.accountType || ''
     form.status = userInfo.status || ''
+    privacyForm.phonePublic = userInfo.phonePublic || false
+    privacyForm.emailPublic = userInfo.emailPublic || false
+  }
+
+  // 如果 authStore 没有完整信息，从 API 获取
+  if (!userInfo?.phonePublic) {
+    try {
+      const userId = authStore.userInfo?.id
+      if (userId) {
+        const response = await api.get(`/users/${userId}`, {
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        })
+        const user = response.data
+        privacyForm.phonePublic = user.phonePublic || false
+        privacyForm.emailPublic = user.emailPublic || false
+      }
+    } catch (error) {
+      // 忽略错误
+    }
   }
 })
 </script>
@@ -198,6 +272,12 @@ onMounted(() => {
 .account-type {
   margin-top: 12px;
   font-size: 14px;
+  color: var(--text-muted);
+}
+
+.form-tip {
+  margin-top: 4px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 </style>

@@ -103,4 +103,30 @@ export class UsersController {
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
+
+  @Put(':id/privacy')
+  @ApiOperation({ summary: '更新隐私设置' })
+  updatePrivacy(@Param('id') id: string, @Body() data: { phonePublic?: boolean; emailPublic?: boolean }) {
+    return this.usersService.updatePrivacySettings(id, data);
+  }
+
+  @Get('public')
+  @ApiOperation({ summary: '通讯录搜索' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiQuery({ name: 'keyword', required: false, type: String })
+  @ApiQuery({ name: 'accountType', required: false, enum: ACCOUNT_TYPE_LIST })
+  findPublicUsers(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('keyword') keyword?: string,
+    @Query('accountType') accountType?: AccountType,
+  ) {
+    return this.usersService.findPublicUsers({
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 20,
+      keyword,
+      accountType,
+    });
+  }
 }

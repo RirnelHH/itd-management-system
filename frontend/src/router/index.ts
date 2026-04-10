@@ -40,6 +40,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Profile',
         component: () => import('../views/profile/Profile.vue'),
         meta: { title: '个人中心' }
+      },
+      {
+        path: 'contacts',
+        name: 'Contacts',
+        component: () => import('../views/contacts/Contacts.vue'),
+        meta: { title: '通讯录' }
       }
     ]
   }

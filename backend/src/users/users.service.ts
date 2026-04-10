@@ -202,4 +202,81 @@ export class UsersService {
 
     return { message: '用户已删除' };
   }
+
+  // 更新隐私设置
+  async updatePrivacySettings(id: string, data: { phonePublic?: boolean; emailPublic?: boolean }) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        phonePublic: data.phonePublic,
+        emailPublic: data.emailPublic,
+      },
+    });
+  }
+
+  // 通讯录搜索（只返回公开的信息）
+  async findPublicUsers(params: {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    accountType?: AccountType;
+  }) {
+    const { page = 1, pageSize = 20, keyword, accountType } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: any = {
+      // 只查询已激活账号的用户
+      account: { status: 'ACTIVE' },
+    };
+
+    if (accountType) {
+      where.account = { ...where.account, accountType };
+    }
+
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword } },
+        { username: { contains: keyword } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { name: 'asc' },
+        include: {
+          account: {
+            select: { accountType: true },
+          },
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    // 只返回公开的信息
+    const publicUsers = users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      accountType: user.account.accountType,
+      // 根据设置返回联系方式
+      phone: user.phonePublic && user.phone ? user.phone : undefined,
+      email: user.emailPublic && user.email ? user.email : undefined,
+    }));
+
+    return {
+      list: publicUsers,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
 }

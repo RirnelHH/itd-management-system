@@ -22,6 +22,11 @@
           <span>个人中心</span>
         </el-menu-item>
 
+        <el-menu-item index="/contacts">
+          <el-icon><Message /></el-icon>
+          <span>通讯录</span>
+        </el-menu-item>
+
         <el-menu-item index="/users" v-if="authStore.isAdmin">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
@@ -65,7 +70,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
-  House, User, UserFilled, ArrowDown
+  House, User, UserFilled, ArrowDown, Message
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
