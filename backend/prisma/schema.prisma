@@ -1,0 +1,77 @@
+// Prisma schema for IT&D Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique @db.VarChar(50)
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(100)
+  phone     String?  @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account?
+}
+
+// 账号表
+model Account {
+  id          String        @id @default(cuid())
+  userId      String        @unique
+  user        User          @relation(fields: [userId], references: [id])
+  
+  password    String        @db.VarChar(255)  // bcrypt hash
+  accountType AccountType
+  status      AccountStatus @default(PENDING_APPROVAL)
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum AccountType {
+  ADMIN           // 系统管理员
+  DIRECTOR        // 主任
+  VICE_DIRECTOR   // 副主任
+  GROUP_LEADER    // 教研组长
+  STUDENT_STAFF   // 学生管理干事
+  TEACHER         // 教师
+}
+
+enum AccountStatus {
+  PENDING_APPROVAL  // 待审批
+  ACTIVE            // 正常
+  DISABLED          // 禁用
+}
+
+// 权限表
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique @db.VarChar(100)  // 如: user.create
+  name        String   @db.VarChar(100)           // 如: 创建用户
+  module      String   @db.VarChar(50)            // 如: user
+  description String?  @db.VarChar(255)
+  
+  createdAt   DateTime @default(now())
+  
+  rolePermissions RolePermission[]
+}
+
+// 角色权限表
+model RolePermission {
+  id           String      @id @default(cuid())
+  accountType  AccountType
+  permissionId String
+  permission   Permission  @relation(fields: [permissionId], references: [id])
+  
+  createdAt   DateTime    @default(now())
+  
+  @@unique([accountType, permissionId])
+}
