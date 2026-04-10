@@ -12,12 +12,24 @@ export class AuthService {
 
   // 获取注册选项（可自主注册的身份列表）
   getRegisterOptions() {
-    // 从允许自主注册的身份列表中获取
-    const allowedSelfRegister = ['TEACHER', 'STUDENT', 'STUDENT_STAFF'];
+    // 所有身份都可自主注册（注册后需管理员审批，主任/副主任/管理员需管理员手动激活）
+    const allowedSelfRegister = [
+      'TEACHER',
+      'STUDENT',
+      'STUDENT_STAFF',
+      'GROUP_LEADER',
+      'VICE_DIRECTOR',
+      'DIRECTOR',
+      'ADMIN'
+    ];
     const accountTypeNames: Record<string, string> = {
+      ADMIN: '管理员',
+      DIRECTOR: '主任',
+      VICE_DIRECTOR: '副主任',
+      GROUP_LEADER: '教研组长',
+      STUDENT_STAFF: '学生管理干事',
       TEACHER: '教师',
       STUDENT: '学生',
-      STUDENT_STAFF: '学生管理干事',
     };
     return allowedSelfRegister.map((type) => ({
       value: type,
@@ -50,8 +62,16 @@ export class AuthService {
       throw new BadRequestException('邮箱已被注册');
     }
 
-    // 允许自主注册的身份（注册后需管理员审批）
-    const allowedSelfRegister = ['TEACHER', 'STUDENT', 'STUDENT_STAFF'];
+    // 允许自主注册的身份（注册后需管理员审批，主任/副主任/管理员需管理员激活）
+    const allowedSelfRegister = [
+      'TEACHER',
+      'STUDENT',
+      'STUDENT_STAFF',
+      'GROUP_LEADER',
+      'VICE_DIRECTOR',
+      'DIRECTOR',
+      'ADMIN'
+    ];
     if (!allowedSelfRegister.includes(data.accountType)) {
       throw new BadRequestException('不允许自主注册此角色，请联系管理员');
     }

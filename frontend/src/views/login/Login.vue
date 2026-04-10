@@ -48,7 +48,7 @@
       <div class="login-footer">
         <router-link to="/register">注册账号</router-link>
         <span class="divider">|</span>
-        <a href="#">忘记密码</a>
+        <span class="forgot-link" @click="handleForgotPassword">忘记密码</span>
       </div>
     </div>
   </div>
@@ -74,6 +74,10 @@ const form = reactive({
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+const handleForgotPassword = () => {
+  ElMessage.warning('请联系管理员重置密码')
 }
 
 const handleLogin = async () => {
@@ -105,8 +109,10 @@ const handleLogin = async () => {
   text-decoration: none;
 }
 
-.login-footer a:hover {
+.login-footer a:hover,
+.forgot-link:hover {
   text-decoration: underline;
+  cursor: pointer;
 }
 
 .divider {
