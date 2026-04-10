@@ -22,6 +22,7 @@
 ```bash
 # 1. 复制环境变量配置
 cp .env.example .env
+# 编辑 .env 填入实际密码
 
 # 2. 启动服务
 ./scripts/start.sh
@@ -37,6 +38,7 @@ cp .env.example .env
 cd backend
 npm install
 cp .env.example .env
+# 编辑 .env 填入实际密码
 npx prisma migrate deploy
 npm run start:prod
 
@@ -65,24 +67,25 @@ itd-management-system/
 │   ├── src/
 │   │   ├── views/          # 页面
 │   │   ├── layouts/        # 布局
-│   │   ├── router/        # 路由
-│   │   ├── stores/        # 状态管理
-│   │   └── api/           # API 接口
-│   ├── nginx.conf         # Nginx 配置
+│   │   ├── router/         # 路由
+│   │   ├── stores/         # 状态管理
+│   │   └── api/            # API 接口
+│   ├── nginx.conf          # Nginx 配置
 │   └── Dockerfile
 ├── scripts/                 # 部署脚本
-│   ├── deploy.sh          # 自动化部署
-│   ├── start.sh           # 启动服务
-│   └── stop.sh            # 停止服务
+│   ├── build.sh            # 构建脚本
+│   ├── deploy.sh           # 自动化部署
+│   ├── start.sh            # 启动服务
+│   └── stop.sh             # 停止服务
 ├── docker-compose.yml      # Docker Compose 配置
-└── .env.example           # 环境变量示例
+└── .env.example            # 环境变量示例
 ```
 
 ## 🔐 初始账号
 
 | 角色 | 用户名 | 密码 |
 |------|--------|------|
-| 管理员 | admin | admin123 |
+| 管理员 | admin | (首次登录后请修改) |
 
 > ⚠️ **首次登录后请立即修改密码**
 
@@ -101,38 +104,48 @@ itd-management-system/
 docker compose up -d              # 启动服务
 docker compose down              # 停止服务
 docker compose logs -f            # 查看日志
-docker compose logs -f backend   # 查看后端日志
+docker compose logs -f backend    # 查看后端日志
 docker compose restart            # 重启服务
-docker compose build              # 重新构建镜像
+docker compose build             # 重新构建镜像
 
 # 数据库操作
-docker exec -it itd-mysql mysql -uitd -pitd123 itd_management
-npx prisma studio                 # 打开 Prisma 数据库管理
+docker exec -it <container_name> mysql -u<user> -p<pass> <database>
+npx prisma studio                # 打开 Prisma 数据库管理
 
 # 后端操作
 cd backend && npm run dev        # 开发模式
-npm run build                     # 构建
+npm run build                    # 构建
 npm run prisma:migrate           # 数据库迁移
 
 # 前端操作
-cd frontend && npm run dev       # 开发模式
-npm run build                     # 生产构建
+cd frontend && npm run dev        # 开发模式
+npm run build                    # 生产构建
 ```
 
 ## 🔧 配置说明
 
 ### 环境变量
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| MYSQL_ROOT_PASSWORD | MySQL root 密码 | root123 |
-| MYSQL_DATABASE | 数据库名 | itd_management |
-| MYSQL_USER | 数据库用户 | itd |
-| MYSQL_PASSWORD | 数据库密码 | itd123 |
-| MYSQL_PORT | MySQL 端口 | 3306 |
-| BACKEND_PORT | 后端端口 | 3000 |
-| FRONTEND_PORT | 前端端口 | 8080 |
-| JWT_SECRET | JWT 密钥 | (需修改) |
+> ⚠️ **重要**: 请复制 `.env.example` 为 `.env` 并填入实际值，`.env` 文件不会上传到 Git
+
+| 变量 | 说明 |
+|------|------|
+| DATABASE_URL | MySQL 连接字符串，格式: mysql://user:password@host:port/dbname |
+| BACKEND_PORT | 后端端口 |
+| JWT_SECRET | JWT 密钥（请使用随机字符串） |
+| NODE_ENV | 运行环境 |
+| FRONTEND_PORT | 前端端口 |
+| VITE_API_BASE_URL | 前端 API 地址 |
+
+### 数据库配置
+
+| 变量 | 说明 |
+|------|------|
+| MYSQL_ROOT_PASSWORD | MySQL root 密码 |
+| MYSQL_DATABASE | 数据库名 |
+| MYSQL_USER | 数据库用户 |
+| MYSQL_PASSWORD | 数据库密码 |
+| MYSQL_PORT | MySQL 端口 |
 
 ## 📝 开发说明
 
