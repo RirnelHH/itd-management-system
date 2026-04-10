@@ -1,43 +1,114 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
+import api from '../api/client'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
-})
+const TOKEN_KEY = 'token'
+const USER_INFO_KEY = 'userInfo'
+
+type UserInfo = {
+  id: string
+  username: string
+  name: string
+  email?: string
+  phone?: string
+  accountType?: string
+  status?: string
+  phonePublic?: boolean
+  emailPublic?: boolean
+  account?: {
+    accountType?: string
+    status?: string
+  }
+}
+
+const normalizeUserInfo = (raw: any): UserInfo | null => {
+  if (!raw || typeof raw !== 'object') return null
+
+  return {
+    ...raw,
+    accountType: raw.accountType ?? raw.account?.accountType,
+    status: raw.status ?? raw.account?.status
+  }
+}
+
+const readStoredUserInfo = (): UserInfo | null => {
+  const raw = localStorage.getItem(USER_INFO_KEY)
+  if (!raw) return null
+
+  try {
+    return normalizeUserInfo(JSON.parse(raw))
+  } catch {
+    localStorage.removeItem(USER_INFO_KEY)
+    return null
+  }
+}
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || '')
-  const userInfo = ref<any>(null)
+  const token = ref(localStorage.getItem(TOKEN_KEY) || '')
+  const userInfo = ref<UserInfo | null>(readStoredUserInfo())
+  const isInitialized = ref(false)
 
   const isLoggedIn = computed(() => !!token.value)
   const isAdmin = computed(() => userInfo.value?.accountType === 'ADMIN')
 
-  // 设置 Token
   const setToken = (newToken: string) => {
     token.value = newToken
-    localStorage.setItem('token', newToken)
-    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+    localStorage.setItem(TOKEN_KEY, newToken)
   }
 
-  // 设置用户信息
   const setUserInfo = (info: any) => {
-    userInfo.value = info
+    const normalized = normalizeUserInfo(info)
+    userInfo.value = normalized
+
+    if (normalized) {
+      localStorage.setItem(USER_INFO_KEY, JSON.stringify(normalized))
+    } else {
+      localStorage.removeItem(USER_INFO_KEY)
+    }
   }
 
-  // 登录
+  const fetchUserInfo = async () => {
+    if (!token.value) return null
+
+    try {
+      const { data } = await api.get('/auth/profile')
+      setUserInfo(data)
+      return userInfo.value
+    } catch (error: any) {
+      const status = error?.response?.status
+      if (status === 401 || status === 403) {
+        logout()
+      }
+      throw error
+    }
+  }
+
+  const initializeAuth = async () => {
+    if (isInitialized.value) return
+
+    if (token.value && !userInfo.value) {
+      try {
+        await fetchUserInfo()
+      } catch {
+        // 已在 fetchUserInfo 内按状态码处理
+      }
+    }
+
+    isInitialized.value = true
+  }
+
   const login = async (username: string, password: string) => {
     try {
       const { data } = await api.post('/auth/login', { username, password })
       setToken(data.access_token)
       setUserInfo(data.user)
+      isInitialized.value = true
       return data
     } catch (error: any) {
       throw new Error(error.response?.data?.message || '登录失败')
     }
   }
 
-  // 注册
   const register = async (userData: {
     username: string
     name: string
@@ -54,27 +125,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 获取用户信息
-  const fetchUserInfo = async () => {
-    if (!token.value) return
-    api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-    try {
-      const { data } = await api.get('/auth/profile')
-      setUserInfo(data)
-    } catch (error) {
-      logout()
-    }
-  }
-
-  // 登出
   const logout = () => {
     token.value = ''
     userInfo.value = null
-    localStorage.removeItem('token')
-    delete api.defaults.headers.common['Authorization']
+    isInitialized.value = true
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_INFO_KEY)
   }
 
-  // 修改密码
   const changePassword = async (oldPassword: string, newPassword: string) => {
     try {
       await api.put('/auth/password', { oldPassword, newPassword })
@@ -83,20 +141,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 初始化 - 恢复登录状态
-  if (token.value) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-    // 恢复用户信息
-    fetchUserInfo()
-  }
-
   return {
     token,
     userInfo,
     isLoggedIn,
     isAdmin,
+    isInitialized,
     setToken,
     setUserInfo,
+    initializeAuth,
     login,
     register,
     fetchUserInfo,

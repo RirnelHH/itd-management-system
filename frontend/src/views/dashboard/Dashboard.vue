@@ -57,7 +57,7 @@ const modules = computed(() => {
   // 根据角色过滤
   return allModules.filter(m => {
     if (!m.roles) return true
-    return m.roles.includes(authStore.userInfo?.accountType)
+    return m.roles.includes(authStore.userInfo?.accountType || '')
   })
 })
 

@@ -9,27 +9,21 @@
 
       <el-row :gutter="20">
         <el-col :span="16">
-          <el-form
-            ref="formRef"
-            :model="form"
-            :rules="rules"
-            label-width="100px"
-            disabled
-          >
+          <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
             <el-form-item label="用户名">
-              <el-input v-model="form.username" />
+              <el-input v-model="form.username" disabled />
             </el-form-item>
-            <el-form-item label="姓名">
+            <el-form-item label="姓名" prop="name">
               <el-input v-model="form.name" />
             </el-form-item>
-            <el-form-item label="邮箱">
+            <el-form-item label="邮箱" prop="email">
               <el-input v-model="form.email" />
             </el-form-item>
-            <el-form-item label="手机号">
+            <el-form-item label="手机号" prop="phone">
               <el-input v-model="form.phone" />
             </el-form-item>
             <el-form-item label="身份">
-              <el-select v-model="form.accountType" style="width: 100%">
+              <el-select v-model="form.accountType" style="width: 100%" disabled>
                 <el-option label="管理员" value="ADMIN" />
                 <el-option label="主任" value="DIRECTOR" />
                 <el-option label="副主任" value="VICE_DIRECTOR" />
@@ -43,6 +37,9 @@
               <el-tag :type="form.status === 'ACTIVE' ? 'success' : 'warning'">
                 {{ form.status === 'ACTIVE' ? '正常' : '待审批' }}
               </el-tag>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="profileSaving" @click="handleUpdateProfile">保存资料</el-button>
             </el-form-item>
           </el-form>
         </el-col>
@@ -121,14 +118,12 @@ import { useAuthStore } from '../../stores/auth'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { UserFilled } from '@element-plus/icons-vue'
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
-})
+import api from '../../api/client'
 
 const authStore = useAuthStore()
+const formRef = ref<FormInstance>()
 const passwordFormRef = ref<FormInstance>()
+const profileSaving = ref(false)
 
 const form = reactive({
   username: '',
@@ -150,6 +145,14 @@ const passwordForm = reactive({
   confirmPassword: ''
 })
 
+const rules: FormRules = {
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ]
+}
+
 const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
   if (value !== passwordForm.newPassword) {
     callback(new Error('两次输入的密码不一致'))
@@ -157,8 +160,6 @@ const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
     callback()
   }
 }
-
-const rules: FormRules = {}
 
 const passwordRules: FormRules = {
   oldPassword: [
@@ -187,6 +188,43 @@ const getAccountTypeName = (type: string) => {
   return names[type] || type
 }
 
+const applyUserInfoToForm = (userInfo: any) => {
+  form.username = userInfo?.username || ''
+  form.name = userInfo?.name || ''
+  form.email = userInfo?.email || ''
+  form.phone = userInfo?.phone || ''
+  form.accountType = userInfo?.accountType || userInfo?.account?.accountType || ''
+  form.status = userInfo?.status || userInfo?.account?.status || ''
+  privacyForm.phonePublic = !!userInfo?.phonePublic
+  privacyForm.emailPublic = !!userInfo?.emailPublic
+}
+
+const refreshProfile = async () => {
+  await authStore.fetchUserInfo()
+  applyUserInfoToForm(authStore.userInfo)
+}
+
+const handleUpdateProfile = async () => {
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  profileSaving.value = true
+  try {
+    await api.put('/auth/profile', {
+      name: form.name,
+      email: form.email,
+      phone: form.phone || undefined
+    })
+
+    await refreshProfile()
+    ElMessage.success('个人资料已更新')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || error.message || '更新资料失败')
+  } finally {
+    profileSaving.value = false
+  }
+}
+
 const handleChangePassword = async () => {
   const valid = await passwordFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -204,49 +242,35 @@ const handleChangePassword = async () => {
 
 const handleUpdatePrivacy = async () => {
   try {
-    const userId = authStore.userInfo?.id
-    if (!userId) return
-    await api.put(`/users/${userId}/privacy`, {
+    await api.put('/users/me/privacy', {
       phonePublic: privacyForm.phonePublic,
       emailPublic: privacyForm.emailPublic
-    }, {
-      headers: { Authorization: `Bearer ${authStore.token}` }
     })
+
+    authStore.setUserInfo({
+      ...(authStore.userInfo || {}),
+      phonePublic: privacyForm.phonePublic,
+      emailPublic: privacyForm.emailPublic
+    })
+
     ElMessage.success('隐私设置已更新')
   } catch (error: any) {
-    ElMessage.error(error.message || '更新失败')
+    ElMessage.error(error.response?.data?.message || error.message || '更新失败')
+    // 回滚 UI 状态
+    applyUserInfoToForm(authStore.userInfo)
   }
 }
 
 onMounted(async () => {
-  // 从 authStore 获取用户信息
-  const userInfo = authStore.userInfo
-  if (userInfo) {
-    form.username = userInfo.username || ''
-    form.name = userInfo.name || ''
-    form.email = userInfo.email || ''
-    form.phone = userInfo.phone || ''
-    form.accountType = userInfo.accountType || ''
-    form.status = userInfo.status || ''
-    privacyForm.phonePublic = userInfo.phonePublic || false
-    privacyForm.emailPublic = userInfo.emailPublic || false
+  await authStore.initializeAuth()
+  if (authStore.userInfo) {
+    applyUserInfoToForm(authStore.userInfo)
   }
 
-  // 如果 authStore 没有完整信息，从 API 获取
-  if (!userInfo?.phonePublic) {
-    try {
-      const userId = authStore.userInfo?.id
-      if (userId) {
-        const response = await api.get(`/users/${userId}`, {
-          headers: { Authorization: `Bearer ${authStore.token}` }
-        })
-        const user = response.data
-        privacyForm.phonePublic = user.phonePublic || false
-        privacyForm.emailPublic = user.emailPublic || false
-      }
-    } catch (error) {
-      // 忽略错误
-    }
+  try {
+    await refreshProfile()
+  } catch {
+    // 初始化时失败时，保持本地缓存数据展示
   }
 })
 </script>
@@ -266,18 +290,17 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  height: 100%;
 }
 
 .account-type {
-  margin-top: 12px;
-  font-size: 14px;
+  margin-top: 16px;
   color: var(--text-muted);
 }
 
 .form-tip {
-  margin-top: 4px;
   font-size: 12px;
   color: var(--text-muted);
+  margin-left: 12px;
 }
 </style>

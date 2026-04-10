@@ -66,15 +66,10 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
-})
+import api from '../../api/client'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
-const token = localStorage.getItem('token') || ''
 
 const searchForm = reactive({
   keyword: '',
@@ -110,15 +105,12 @@ const fetchContacts = async () => {
     if (searchForm.keyword) params.keyword = searchForm.keyword
     if (searchForm.accountType) params.accountType = searchForm.accountType
 
-    const response = await api.get('/users/public', {
-      params,
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    const response = await api.get('/users/public', { params })
 
     tableData.value = response.data.list || []
     pagination.total = response.data.total || 0
   } catch (error: any) {
-    ElMessage.error(error.message || '获取通讯录失败')
+    ElMessage.error(error.response?.data?.message || error.message || '获取通讯录失败')
   } finally {
     loading.value = false
   }

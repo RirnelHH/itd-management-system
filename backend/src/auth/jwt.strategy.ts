@@ -13,9 +13,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; username: string; accountType: string }) {
+  async validate(payload: { sub?: string; userId?: string; id?: string; username: string; accountType: string }) {
+    const userId = payload.sub || payload.userId || payload.id;
+    if (!userId) {
+      throw new UnauthorizedException('无效的登录凭证');
+    }
+
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
+      where: { id: userId },
       include: { account: true },
     });
 

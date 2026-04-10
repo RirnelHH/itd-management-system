@@ -2,12 +2,16 @@ import { Controller, Post, Body, Get, Put, UseGuards, Request, HttpCode, HttpSta
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, ChangePasswordDto, ResetPasswordDto, ForgotPasswordDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, ChangePasswordDto, ResetPasswordDto, ForgotPasswordDto, UpdateProfileDto } from './dto/auth.dto';
 
 @ApiTags('认证')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
+
+  private getUserId(req: any): string {
+    return req?.user?.userId || req?.user?.id || req?.user?.sub;
+  }
 
   @Get('register-options')
   @ApiOperation({ summary: '获取注册选项' })
@@ -46,7 +50,16 @@ export class AuthController {
   @ApiOperation({ summary: '获取当前用户信息' })
   @ApiResponse({ status: 200, description: '获取成功' })
   getProfile(@Request() req) {
-    return this.authService.getProfile(req.user.userId);
+    return this.authService.getProfile(this.getUserId(req));
+  }
+
+  @Put('profile')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新当前用户信息' })
+  @ApiResponse({ status: 200, description: '更新成功' })
+  updateProfile(@Request() req, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(this.getUserId(req), dto);
   }
 
   @Put('password')
@@ -55,7 +68,7 @@ export class AuthController {
   @ApiOperation({ summary: '修改密码' })
   @ApiResponse({ status: 200, description: '修改成功' })
   changePassword(@Request() req, @Body() dto: ChangePasswordDto) {
-    return this.authService.changePassword(req.user.userId, dto.oldPassword, dto.newPassword);
+    return this.authService.changePassword(this.getUserId(req), dto.oldPassword, dto.newPassword);
   }
 
   @Post('reset-password')

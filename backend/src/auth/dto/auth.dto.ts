@@ -77,3 +77,22 @@ export class ForgotPasswordDto {
   @IsEmail()
   email: string;
 }
+
+export class UpdateProfileDto {
+  @ApiPropertyOptional({ example: '张三', description: '姓名' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'zhangsan@example.com', description: '邮箱' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: '13800138000', description: '手机号' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+}

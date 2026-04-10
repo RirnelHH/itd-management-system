@@ -175,6 +175,40 @@ export class AuthService {
     return user;
   }
 
+  // 更新当前用户信息
+  async updateProfile(userId: string, data: { name?: string; email?: string; phone?: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    if (data.email && data.email !== user.email) {
+      const existingEmail = await this.prisma.user.findUnique({
+        where: { email: data.email },
+      });
+      if (existingEmail && existingEmail.id !== userId) {
+        throw new BadRequestException('邮箱已被注册');
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+      },
+      include: {
+        account: { select: { accountType: true, status: true } },
+      },
+    });
+
+    return updated;
+  }
+
   // 修改密码
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({

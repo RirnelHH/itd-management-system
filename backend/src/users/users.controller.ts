@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Post, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -12,6 +12,10 @@ import { AccountType, AccountStatus, ACCOUNT_TYPE_LIST, ACCOUNT_STATUS_LIST } fr
 @ApiBearerAuth()
 export class UsersController {
   constructor(private usersService: UsersService) {}
+
+  private getUserId(req: any): string {
+    return req?.user?.userId || req?.user?.id || req?.user?.sub;
+  }
 
   @Post()
   @UseGuards(RolesGuard)
@@ -51,6 +55,38 @@ export class UsersController {
       status,
       keyword,
     });
+  }
+
+  @Get('public')
+  @ApiOperation({ summary: '通讯录搜索' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number })
+  @ApiQuery({ name: 'keyword', required: false, type: String })
+  @ApiQuery({ name: 'accountType', required: false, enum: ACCOUNT_TYPE_LIST })
+  findPublicUsers(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('keyword') keyword?: string,
+    @Query('accountType') accountType?: AccountType,
+  ) {
+    return this.usersService.findPublicUsers({
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 20,
+      keyword,
+      accountType,
+    });
+  }
+
+  @Put('me/privacy')
+  @ApiOperation({ summary: '更新当前用户隐私设置' })
+  updateMyPrivacy(@Request() req, @Body() data: { phonePublic?: boolean; emailPublic?: boolean }) {
+    return this.usersService.updatePrivacySettings(this.getUserId(req), data);
+  }
+
+  @Put(':id/privacy')
+  @ApiOperation({ summary: '更新隐私设置' })
+  updatePrivacy(@Param('id') id: string, @Body() data: { phonePublic?: boolean; emailPublic?: boolean }) {
+    return this.usersService.updatePrivacySettings(id, data);
   }
 
   @Get(':id')
@@ -102,31 +138,5 @@ export class UsersController {
   @ApiOperation({ summary: '删除用户' })
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
-  }
-
-  @Put(':id/privacy')
-  @ApiOperation({ summary: '更新隐私设置' })
-  updatePrivacy(@Param('id') id: string, @Body() data: { phonePublic?: boolean; emailPublic?: boolean }) {
-    return this.usersService.updatePrivacySettings(id, data);
-  }
-
-  @Get('public')
-  @ApiOperation({ summary: '通讯录搜索' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'pageSize', required: false, type: Number })
-  @ApiQuery({ name: 'keyword', required: false, type: String })
-  @ApiQuery({ name: 'accountType', required: false, enum: ACCOUNT_TYPE_LIST })
-  findPublicUsers(
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
-    @Query('keyword') keyword?: string,
-    @Query('accountType') accountType?: AccountType,
-  ) {
-    return this.usersService.findPublicUsers({
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 20,
-      keyword,
-      accountType,
-    });
   }
 }

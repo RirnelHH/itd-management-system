@@ -56,18 +56,21 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const requiresAuth = to.meta.requiresAuth !== false
 
+  await authStore.initializeAuth()
+
   if (requiresAuth && !authStore.token) {
-    next('/login')
-  } else if (to.path === '/login' && authStore.token) {
-    next('/dashboard')
-  } else {
-    next()
+    return '/login'
   }
+
+  if (to.path === '/login' && authStore.token) {
+    return '/dashboard'
+  }
+
+  return true
 })
 
 export default router
