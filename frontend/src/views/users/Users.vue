@@ -129,6 +129,39 @@
         <el-button type="primary" :loading="createLoading" @click="submitCreate">确定创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑账号对话框 -->
+    <el-dialog v-model="editDialogVisible" title="编辑用户" width="500px" destroy-on-close>
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="100px">
+        <el-form-item label="用户名">
+          <el-input v-model="editForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="editForm.name" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="editForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="editForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item label="身份" prop="accountType">
+          <el-select v-model="editForm.accountType" placeholder="请选择身份" style="width: 100%">
+            <el-option label="管理员" value="ADMIN" />
+            <el-option label="主任" value="DIRECTOR" />
+            <el-option label="副主任" value="VICE_DIRECTOR" />
+            <el-option label="教研组长" value="GROUP_LEADER" />
+            <el-option label="学生管理干事" value="STUDENT_STAFF" />
+            <el-option label="教师" value="TEACHER" />
+            <el-option label="学生" value="STUDENT" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editLoading" @click="submitEdit">保存修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -236,6 +269,67 @@ const submitCreate = async () => {
   }
 }
 
+// 编辑账号对话框
+const editDialogVisible = ref(false)
+const editFormRef = ref<FormInstance>()
+const editLoading = ref(false)
+
+const editForm = reactive({
+  id: '',
+  username: '',
+  name: '',
+  email: '',
+  phone: '',
+  accountType: ''
+})
+
+const editRules: FormRules = {
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+  ],
+  accountType: [{ required: true, message: '请选择身份', trigger: 'change' }]
+}
+
+// 打开编辑对话框
+const handleEdit = (row: any) => {
+  editForm.id = row.id
+  editForm.username = row.username
+  editForm.name = row.name || ''
+  editForm.email = row.email || ''
+  editForm.phone = row.phone || ''
+  editForm.accountType = row.account?.accountType || 'TEACHER'
+  editDialogVisible.value = true
+}
+
+// 提交编辑
+const submitEdit = async () => {
+  const valid = await editFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  editLoading.value = true
+  try {
+    await api.put(`/users/${editForm.id}`, {
+      name: editForm.name,
+      email: editForm.email,
+      phone: editForm.phone,
+      accountType: editForm.accountType
+    })
+    ElMessage.success('用户信息更新成功')
+    editDialogVisible.value = false
+    fetchUsers()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || error.message || '更新失败')
+  } finally {
+    editLoading.value = false
+  }
+}
+
 // 审批账号
 const handleApprove = async (row: any) => {
   try {
@@ -292,11 +386,6 @@ const handleSizeChange = () => {
 
 const handlePageChange = () => {
   fetchUsers()
-}
-
-const handleEdit = (row: any) => {
-  ElMessage.info(`编辑用户: ${row.username}`)
-  // TODO: 打开编辑对话框
 }
 
 const handleToggleStatus = async (row: any) => {
