@@ -74,6 +74,15 @@ export const useAuthStore = defineStore('auth', () => {
     delete api.defaults.headers.common['Authorization']
   }
 
+  // 修改密码
+  const changePassword = async (oldPassword: string, newPassword: string) => {
+    try {
+      await api.put('/auth/password', { oldPassword, newPassword })
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || '密码修改失败')
+    }
+  }
+
   // 初始化 - 恢复登录状态
   if (token.value) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
@@ -89,6 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     fetchUserInfo,
-    logout
+    logout,
+    changePassword
   }
 })

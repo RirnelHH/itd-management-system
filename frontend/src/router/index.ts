@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Users',
         component: () => import('../views/users/Users.vue'),
         meta: { title: '用户管理', roles: ['ADMIN'] }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('../views/profile/Profile.vue'),
+        meta: { title: '个人中心' }
       }
     ]
   }

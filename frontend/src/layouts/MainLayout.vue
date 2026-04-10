@@ -17,54 +17,14 @@
           <span>首页</span>
         </el-menu-item>
 
+        <el-menu-item index="/profile">
+          <el-icon><UserFilled /></el-icon>
+          <span>个人中心</span>
+        </el-menu-item>
+
         <el-menu-item index="/users" v-if="authStore.isAdmin">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/students">
-          <el-icon><UserFilled /></el-icon>
-          <span>学生管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/teachers">
-          <el-icon><Avatar /></el-icon>
-          <span>教师管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/teaching-plan">
-          <el-icon><Document /></el-icon>
-          <span>授课计划</span>
-        </el-menu-item>
-
-        <el-menu-item index="/schedule">
-          <el-icon><Calendar /></el-icon>
-          <span>排课管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/grade">
-          <el-icon><Memo /></el-icon>
-          <span>成绩管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/leave">
-          <el-icon><Clock /></el-icon>
-          <span>请假管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/attendance">
-          <el-icon><Timer /></el-icon>
-          <span>签到管理</span>
-        </el-menu-item>
-
-        <el-menu-item index="/statistics">
-          <el-icon><DataLine /></el-icon>
-          <span>课时统计</span>
-        </el-menu-item>
-
-        <el-menu-item index="/settings">
-          <el-icon><Setting /></el-icon>
-          <span>系统设置</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -105,9 +65,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
-  House, User, UserFilled, Avatar, Document,
-  Calendar, Clock, Timer, DataLine, Setting,
-  ArrowDown, Memo
+  House, User, UserFilled, ArrowDown
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -122,7 +80,7 @@ const handleCommand = (command: string) => {
     authStore.logout()
     router.push('/login')
   } else if (command === 'profile') {
-    // TODO: 个人中心
+    router.push('/profile')
   }
 }
 </script>
