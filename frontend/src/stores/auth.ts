@@ -86,6 +86,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 初始化 - 恢复登录状态
   if (token.value) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+    // 恢复用户信息
+    fetchUserInfo()
   }
 
   return {
