@@ -34,7 +34,7 @@ WORKDIR /app
 # 安装运行所需的基础工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
-    libssl1.1 \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建非 root 用户
