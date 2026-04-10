@@ -91,6 +91,12 @@ const handleCommand = (command: string) => {
 </script>
 
 <style scoped>
+.el-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .layout-container {
   height: 100vh;
 }
