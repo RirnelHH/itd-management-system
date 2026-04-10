@@ -2,7 +2,7 @@
 # 多阶段构建：Node 构建 + Nginx 运行
 
 # ============ 构建阶段 ============
-FROM node:20-slim AS builder
+FROM node:20-bullseye AS builder
 
 WORKDIR /app
 

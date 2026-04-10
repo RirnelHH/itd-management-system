@@ -2,7 +2,7 @@
 # 多阶段构建：构建阶段 + 运行阶段
 
 # ============ 构建阶段 ============
-FROM node:20-slim AS builder
+FROM node:20-bullseye AS builder
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # ============ 运行阶段 ============
-FROM node:20-slim AS runner
+FROM node:20-bullseye AS runner
 
 WORKDIR /app
 
