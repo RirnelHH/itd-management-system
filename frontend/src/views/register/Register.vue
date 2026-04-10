@@ -53,10 +53,14 @@
             placeholder="选择身份"
             size="large"
             style="width: 100%"
+            :loading="loadingOptions"
           >
-            <el-option label="教师" value="TEACHER" />
-            <el-option label="学生" value="STUDENT" />
-            <el-option label="学生管理干事" value="STUDENT_STAFF" />
+            <el-option
+              v-for="option in accountTypeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
 
@@ -103,15 +107,53 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'
+})
 
 const router = useRouter()
 
 const formRef = ref()
 const loading = ref(false)
+const loadingOptions = ref(false)
+
+interface AccountTypeOption {
+  value: string
+  label: string
+}
+
+const accountTypeOptions = ref<AccountTypeOption[]>([])
+
+// 获取注册身份选项
+const fetchRegisterOptions = async () => {
+  loadingOptions.value = true
+  try {
+    const { data } = await api.get('/auth/register-options')
+    accountTypeOptions.value = data
+    if (data.length > 0) {
+      form.accountType = data[0].value
+    }
+  } catch (error) {
+    console.error('获取注册选项失败:', error)
+    // 使用默认选项作为后备
+    accountTypeOptions.value = [
+      { value: 'TEACHER', label: '教师' },
+      { value: 'STUDENT', label: '学生' },
+      { value: 'STUDENT_STAFF', label: '学生管理干事' }
+    ]
+  } finally {
+    loadingOptions.value = false
+  }
+}
+
+onMounted(() => {
+  fetchRegisterOptions()
+})
 
 const form = reactive({
   username: '',
@@ -162,7 +204,7 @@ const handleRegister = async () => {
 
   loading.value = true
   try {
-    const response = await axios.post('/api/v1/auth/register', {
+    const response = await api.post('/auth/register', {
       username: form.username,
       name: form.name,
       email: form.email,
@@ -170,7 +212,7 @@ const handleRegister = async () => {
       accountType: form.accountType,
       password: form.password
     })
-    
+
     ElMessage.success(response.data.message || '注册成功，请等待审批')
     router.push('/login')
   } catch (error: any) {

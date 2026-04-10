@@ -10,6 +10,21 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  // 获取注册选项（可自主注册的身份列表）
+  getRegisterOptions() {
+    // 从允许自主注册的身份列表中获取
+    const allowedSelfRegister = ['TEACHER', 'STUDENT', 'STUDENT_STAFF'];
+    const accountTypeNames: Record<string, string> = {
+      TEACHER: '教师',
+      STUDENT: '学生',
+      STUDENT_STAFF: '学生管理干事',
+    };
+    return allowedSelfRegister.map((type) => ({
+      value: type,
+      label: accountTypeNames[type] || type,
+    }));
+  }
+
   // 用户注册
   async register(data: {
     username: string;

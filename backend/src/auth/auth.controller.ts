@@ -9,6 +9,12 @@ import { RegisterDto, LoginDto, ChangePasswordDto, ResetPasswordDto, ForgotPassw
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Get('register-options')
+  @ApiOperation({ summary: '获取注册选项' })
+  getRegisterOptions() {
+    return this.authService.getRegisterOptions();
+  }
+
   @Post('register')
   @ApiOperation({ summary: '用户注册' })
   @ApiResponse({ status: 201, description: '注册成功' })
