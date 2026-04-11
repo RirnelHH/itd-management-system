@@ -5,6 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "node --require ts-node/register/transpile-only --test test/**/*.test.ts",
     "start": "nest start",
     "dev": "nest start --watch",
     "start:prod": "node dist/main",
