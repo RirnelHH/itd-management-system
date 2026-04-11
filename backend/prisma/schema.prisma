@@ -10,6 +10,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum EducationSystem {
+  THREE_YEAR
+  FIVE_YEAR
+}
+
+enum CourseType {
+  PUBLIC
+  MAJOR
+}
+
+enum CourseSourceType {
+  MANUAL
+  PLAN_IMPORT
+}
+
+enum CourseStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum GradeStatus {
+  ACTIVE
+  GRADUATED
+}
+
+enum TeachingPlanTermType {
+  SCHOOL
+  INTERNSHIP
+}
+
 // 用户表
 model User {
   id        String   @id @default(cuid())
@@ -62,4 +92,92 @@ model RolePermission {
   createdAt   DateTime   @default(now())
   
   @@unique([accountType, permissionId])
+}
+
+// 专业表
+model Major {
+  id              String            @id @default(cuid())
+  name            String            @unique
+  educationSystem EducationSystem
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  grades          Grade[]
+  courses         Course[]
+}
+
+// 年级表
+model Grade {
+  id              String            @id @default(cuid())
+  name            String
+  majorId         String
+  major           Major             @relation(fields: [majorId], references: [id])
+  educationSystem EducationSystem
+  status          GradeStatus       @default(ACTIVE)
+  graduatedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  teachingPlans   TeachingPlan[]
+
+  @@index([majorId])
+  @@index([status])
+  @@unique([majorId, name])
+}
+
+// 课程表
+model Course {
+  id               String            @id @default(dbgenerated("(uuid())")) @db.Char(36)
+  name             String
+  courseType       CourseType
+  sourceType       CourseSourceType  @default(MANUAL)
+  status           CourseStatus      @default(ACTIVE)
+  majorId          String?
+  major            Major?            @relation(fields: [majorId], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  teachingPlanRows TeachingPlanRow[]
+
+  @@index([majorId])
+  @@index([courseType])
+  @@unique([courseType, name])
+  @@unique([majorId, name])
+}
+
+// 教学计划表
+model TeachingPlan {
+  id          String            @id @default(cuid())
+  gradeId     String
+  grade       Grade             @relation(fields: [gradeId], references: [id])
+  name        String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  rows        TeachingPlanRow[]
+
+  @@index([gradeId])
+}
+
+// 教学计划行表
+model TeachingPlanRow {
+  id               String               @id @default(cuid())
+  teachingPlanId   String
+  teachingPlan     TeachingPlan         @relation(fields: [teachingPlanId], references: [id])
+  termNo           Int
+  termType         TeachingPlanTermType
+  courseName       String
+  courseId         String?              @db.Char(36)
+  course           Course?              @relation(fields: [courseId], references: [id])
+  weeklyHoursRaw   String
+  weeklyHoursValue Decimal?             @db.Decimal(10, 2)
+  teacherName      String?
+  remark           String?
+  sortOrder        Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([teachingPlanId])
+  @@index([courseId])
+  @@index([termNo, termType])
 }
