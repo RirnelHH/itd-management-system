@@ -1,0 +1,95 @@
+{
+  "project": "信息技术与设计系管理系统 - 教研教学模块第一批",
+  "branchName": "main",
+  "description": "围绕专业、年级、课程、实施性教学计划建立第一批后端能力与数据模型，不包含前端与Excel导入导出。",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "补齐教研教学模块 OpenSpec 文档",
+      "description": "作为项目维护者，我需要先把教研教学模块第一批的范围、边界和规范写入 OpenSpec，方便后续开发统一依据。",
+      "acceptanceCriteria": [
+        "创建 change.md、design.md、specs/majors-courses/spec.md、specs/grades-teaching-plan/spec.md",
+        "明确第一批只包含后端与数据结构，不包含前端与 Excel 导入导出",
+        "覆盖 Major、Course、Grade、TeachingPlan、TeachingPlanRow 的边界",
+        "文档已写入仓库"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "已完成，OpenSpec 四个文件已落库。"
+    },
+    {
+      "id": "US-002",
+      "title": "建立教研教学模块 Prisma 数据模型",
+      "description": "作为开发者，我需要先建立 Major、Grade、Course、TeachingPlan、TeachingPlanRow 的 Prisma 模型与枚举，作为后端接口基础。",
+      "acceptanceCriteria": [
+        "schema 中包含 EducationSystem、CourseType、CourseSourceType、CourseStatus、GradeStatus、TeachingPlanTermType 等枚举",
+        "新增 Major、Grade、Course、TeachingPlan、TeachingPlanRow 模型",
+        "Course 使用 uuid 主键",
+        "模型关系与必要索引补齐",
+        "schema 文件已写入仓库"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "已完成，backend/prisma/schema.prisma 已更新。"
+    },
+    {
+      "id": "US-003",
+      "title": "完成 Prisma generate 与 migration",
+      "description": "作为开发者，我需要让 schema 可以生成客户端并形成可执行 migration，以便数据库结构与代码一致。",
+      "acceptanceCriteria": [
+        "prisma generate 成功",
+        "生成并写入本批 migration 文件",
+        "数据库结构与当前 schema 对齐",
+        "仅在 Prisma 范围内做必要修正"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "进行中，非交互迁移与历史 migration 基线需要继续处理。"
+    },
+    {
+      "id": "US-004",
+      "title": "实现专业与年级后端 API",
+      "description": "作为管理员，我需要通过后端接口维护专业与年级基础资料，为后续计划管理提供主数据。",
+      "acceptanceCriteria": [
+        "实现 majors CRUD / 状态管理接口",
+        "实现 grades CRUD / 状态管理接口",
+        "Grade 必须绑定 Major",
+        "必要 DTO、校验与权限控制补齐",
+        "TypeScript build passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "待执行。"
+    },
+    {
+      "id": "US-005",
+      "title": "实现课程与教学计划后端 API",
+      "description": "作为管理员，我需要通过后端接口维护课程和实施性教学计划，以支撑后续教研教学流程。",
+      "acceptanceCriteria": [
+        "实现 courses CRUD / 状态管理接口",
+        "实现 teaching-plans CRUD 与 plan rows 管理接口",
+        "PUBLIC 课程按 name 唯一，MAJOR 课程按 (majorId, name) 唯一",
+        "被未毕业年级引用的课程禁止物理删除并提示只能停用",
+        "TypeScript build passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "待执行。"
+    },
+    {
+      "id": "US-006",
+      "title": "完成第一批验证、提交与推送",
+      "description": "作为项目负责人，我需要确认第一批后端能力可构建、可迁移并已提交到主分支，方便继续下一批。",
+      "acceptanceCriteria": [
+        "backend build passes",
+        "必要 Prisma 验证完成",
+        "变更已 commit",
+        "变更已 push 到 origin/main",
+        "输出 commit SHA"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "待执行。"
+    }
+  ]
+}
