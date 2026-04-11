@@ -151,6 +151,12 @@ import type {
   Major,
 } from '../../types/teaching'
 import { extractErrorMessage, isDialogCancel } from '../../utils/api'
+import {
+  buildCourseQuery,
+  getCourseDeleteErrorMessage,
+  sanitizeCourseMajor,
+  validateCourseMajor,
+} from './helpers'
 
 const majors = ref<Major[]>([])
 const courses = ref<Course[]>([])
@@ -184,8 +190,9 @@ const rules: FormRules<typeof form> = {
   majorId: [
     {
       validator: (_rule, value, callback) => {
-        if (isMajorCourse(form.courseType) && !value) {
-          callback(new Error('专业课必须选择归属专业'))
+        const message = validateCourseMajor(form.courseType, value)
+        if (message) {
+          callback(new Error(message))
           return
         }
         callback()
@@ -209,8 +216,9 @@ const formatDateTime = (value: string) =>
 watch(
   () => form.courseType,
   (courseType) => {
-    if (!isMajorCourse(courseType)) {
-      form.majorId = ''
+    const nextMajorId = sanitizeCourseMajor(courseType, form.majorId)
+    if (nextMajorId !== form.majorId) {
+      form.majorId = nextMajorId
       formRef.value?.clearValidate('majorId')
     }
   },
@@ -219,12 +227,7 @@ watch(
 const loadCourses = async () => {
   loading.value = true
   try {
-    courses.value = await fetchCoursesRequest({
-      majorId: filters.majorId || undefined,
-      courseType: filters.courseType || undefined,
-      status: filters.status || undefined,
-      keyword: filters.keyword || undefined,
-    })
+    courses.value = await fetchCoursesRequest(buildCourseQuery(filters))
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, '课程列表加载失败'))
   } finally {
@@ -317,7 +320,7 @@ const handleDelete = async (course: Course) => {
     if (isDialogCancel(error)) {
       return
     }
-    ElMessage.error(extractErrorMessage(error, '课程删除失败'))
+    ElMessage.error(getCourseDeleteErrorMessage(error))
   }
 }
 

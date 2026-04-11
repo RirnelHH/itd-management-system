@@ -108,6 +108,11 @@ import {
 } from '../../api/teaching'
 import type { Grade, TeachingPlan } from '../../types/teaching'
 import { extractErrorMessage, isDialogCancel } from '../../utils/api'
+import {
+  buildTeachingPlanDetailPath,
+  buildTeachingPlanQuery,
+  validateTeachingPlanForm,
+} from './helpers'
 
 const router = useRouter()
 const grades = ref<Grade[]>([])
@@ -130,8 +135,38 @@ const form = reactive({
 })
 
 const rules: FormRules<typeof form> = {
-  name: [{ required: true, message: '请输入教学计划名称', trigger: 'blur' }],
-  gradeId: [{ required: true, message: '请选择所属年级', trigger: 'change' }],
+  name: [
+    {
+      validator: (_rule, value, callback) => {
+        const message = validateTeachingPlanForm({
+          name: value,
+          gradeId: form.gradeId,
+        }).name
+        if (message) {
+          callback(new Error(message))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+  gradeId: [
+    {
+      validator: (_rule, value, callback) => {
+        const message = validateTeachingPlanForm({
+          name: form.name,
+          gradeId: value,
+        }).gradeId
+        if (message) {
+          callback(new Error(message))
+          return
+        }
+        callback()
+      },
+      trigger: 'change',
+    },
+  ],
 }
 
 const formatDateTime = (value: string) =>
@@ -146,10 +181,7 @@ const formatDateTime = (value: string) =>
 const loadPlans = async () => {
   loading.value = true
   try {
-    plans.value = await fetchTeachingPlansRequest({
-      gradeId: filters.gradeId || undefined,
-      keyword: filters.keyword || undefined,
-    })
+    plans.value = await fetchTeachingPlansRequest(buildTeachingPlanQuery(filters))
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, '教学计划列表加载失败'))
   } finally {
@@ -233,7 +265,7 @@ const handleDelete = async (plan: TeachingPlan) => {
 }
 
 const goToDetail = (id: string) => {
-  router.push(`/teaching/plans/${id}`)
+  router.push(buildTeachingPlanDetailPath(id))
 }
 
 onMounted(loadData)

@@ -101,6 +101,7 @@ import {
 import { EDUCATION_SYSTEM_OPTIONS, getEducationSystemLabel } from '../../constants/teaching'
 import type { EducationSystem, Major } from '../../types/teaching'
 import { extractErrorMessage, isDialogCancel } from '../../utils/api'
+import { getMajorSaveErrorMessage, validateMajorForm } from './helpers'
 
 const majors = ref<Major[]>([])
 const loading = ref(false)
@@ -121,8 +122,38 @@ const form = reactive({
 })
 
 const rules: FormRules<typeof form> = {
-  name: [{ required: true, message: '请输入专业名称', trigger: 'blur' }],
-  educationSystem: [{ required: true, message: '请选择学制', trigger: 'change' }],
+  name: [
+    {
+      validator: (_rule, value, callback) => {
+        const message = validateMajorForm({
+          name: value,
+          educationSystem: form.educationSystem,
+        }).name
+        if (message) {
+          callback(new Error(message))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+  educationSystem: [
+    {
+      validator: (_rule, value, callback) => {
+        const message = validateMajorForm({
+          name: form.name,
+          educationSystem: value,
+        }).educationSystem
+        if (message) {
+          callback(new Error(message))
+          return
+        }
+        callback()
+      },
+      trigger: 'change',
+    },
+  ],
 }
 
 const formatDateTime = (value: string) =>
@@ -189,7 +220,7 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     await loadMajors()
   } catch (error) {
-    ElMessage.error(extractErrorMessage(error, '专业保存失败'))
+    ElMessage.error(getMajorSaveErrorMessage(error))
   } finally {
     submitting.value = false
   }

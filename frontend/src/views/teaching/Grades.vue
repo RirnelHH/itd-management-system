@@ -47,7 +47,7 @@
         </el-table-column>
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'GRADUATED' ? 'info' : 'success'">
+            <el-tag :type="getGradeStatusTagType(row.status)">
               {{ getGradeStatusLabel(row.status) }}
             </el-tag>
           </template>
@@ -133,6 +133,7 @@ import {
 } from '../../constants/teaching'
 import type { EducationSystem, Grade, GradeStatus, Major } from '../../types/teaching'
 import { extractErrorMessage, isDialogCancel } from '../../utils/api'
+import { buildGradeQuery, getGradeStatusTagType, validateGraduatedAt } from './helpers'
 
 const majors = ref<Major[]>([])
 const grades = ref<Grade[]>([])
@@ -165,8 +166,9 @@ const rules: FormRules<typeof form> = {
   graduatedAt: [
     {
       validator: (_rule, value, callback) => {
-        if (form.status === 'GRADUATED' && !value) {
-          callback(new Error('已毕业年级必须填写毕业时间'))
+        const message = validateGraduatedAt(form.status, value)
+        if (message) {
+          callback(new Error(message))
           return
         }
         callback()
@@ -196,11 +198,7 @@ const formatDate = (value?: string | null) => {
 const loadGrades = async () => {
   loading.value = true
   try {
-    grades.value = await fetchGradesRequest({
-      majorId: filters.majorId || undefined,
-      status: filters.status || undefined,
-      keyword: filters.keyword || undefined,
-    })
+    grades.value = await fetchGradesRequest(buildGradeQuery(filters))
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, '年级列表加载失败'))
   } finally {
