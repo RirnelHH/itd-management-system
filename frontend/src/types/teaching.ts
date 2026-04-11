@@ -142,3 +142,12 @@ export interface TeachingPlanRowPayload {
   remark?: string | null
   sortOrder?: number
 }
+
+export interface TeachingPlanExcelImportResult {
+  message: string
+  importedRows: number
+  replacedRows: number
+  educationSystem: EducationSystem
+  templateVersion: string
+  fileName: string
+}

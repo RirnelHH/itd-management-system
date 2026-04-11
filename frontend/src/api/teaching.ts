@@ -11,6 +11,7 @@ import type {
   MajorQuery,
   TeachingPlan,
   TeachingPlanDetail,
+  TeachingPlanExcelImportResult,
   TeachingPlanPayload,
   TeachingPlanQuery,
   TeachingPlanRow,
@@ -119,4 +120,30 @@ export const updateTeachingPlanRowRequest = async (
 export const deleteTeachingPlanRowRequest = async (id: string, rowId: string) => {
   const { data } = await api.delete<{ message: string }>(`/teaching-plans/${id}/rows/${rowId}`)
   return data
+}
+
+export const importTeachingPlanExcelRequest = async (id: string, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post<TeachingPlanExcelImportResult>(`/teaching-plans/${id}/import`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return data
+}
+
+export const exportTeachingPlanExcelRequest = async (id: string) => {
+  const response = await api.get<Blob>(`/teaching-plans/${id}/export`, {
+    responseType: 'blob',
+  })
+  return response
+}
+
+export const downloadTeachingPlanTemplateRequest = async (educationSystem?: 'THREE_YEAR' | 'FIVE_YEAR') => {
+  const response = await api.get<Blob>('/teaching-plans/template/download', {
+    params: educationSystem ? { educationSystem } : undefined,
+    responseType: 'blob',
+  })
+  return response
 }

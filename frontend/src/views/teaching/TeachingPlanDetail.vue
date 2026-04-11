@@ -12,9 +12,20 @@
       </div>
       <div class="header-actions">
         <el-button @click="loadData">刷新</el-button>
+        <el-button :loading="templateDownloading" @click="handleTemplateDownload">下载模板</el-button>
+        <el-button :loading="exporting" @click="handleExport">导出 Excel</el-button>
+        <el-button :loading="importing" @click="triggerImport">导入 Excel</el-button>
         <el-button type="primary" @click="openCreateDialog">新增计划行</el-button>
       </div>
     </div>
+
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept=".xlsx"
+      class="hidden-file-input"
+      @change="handleFileChange"
+    />
 
     <el-alert
       v-if="hasDisabledRows"
@@ -189,8 +200,11 @@ import type { FormInstance, FormRules } from 'element-plus'
 import {
   createTeachingPlanRowRequest,
   deleteTeachingPlanRowRequest,
+  downloadTeachingPlanTemplateRequest,
+  exportTeachingPlanExcelRequest,
   fetchCoursesRequest,
   fetchTeachingPlanDetailRequest,
+  importTeachingPlanExcelRequest,
   updateTeachingPlanRowRequest,
 } from '../../api/teaching'
 import { TEACHING_PLAN_TERM_TYPE_OPTIONS, getCourseTypeLabel } from '../../constants/teaching'
@@ -210,6 +224,9 @@ const planId = computed(() => String(route.params.id || ''))
 
 const loading = ref(false)
 const submitting = ref(false)
+const importing = ref(false)
+const exporting = ref(false)
+const templateDownloading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const plan = ref<TeachingPlanDetail | null>(null)
@@ -217,6 +234,7 @@ const courses = ref<Course[]>([])
 const editingRowId = ref('')
 const originalCourseId = ref<string | null>(null)
 const formRef = ref<FormInstance>()
+const fileInputRef = ref<HTMLInputElement>()
 
 const rowForm = reactive<{
   termNo: number | null
@@ -342,6 +360,29 @@ const goBack = () => {
   router.push('/teaching/plans')
 }
 
+const resolveDownloadFileName = (headerValue?: string) => {
+  if (!headerValue) {
+    return ''
+  }
+
+  const utf8Match = headerValue.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1])
+  }
+
+  const plainMatch = headerValue.match(/filename="?([^"]+)"?/i)
+  return plainMatch?.[1] || ''
+}
+
+const downloadBlobFile = (blob: Blob, fileName: string) => {
+  const objectUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = fileName
+  link.click()
+  window.URL.revokeObjectURL(objectUrl)
+}
+
 const loadData = async () => {
   if (!planId.value) {
     return
@@ -399,6 +440,66 @@ const openEditDialog = (row: TeachingPlanRow) => {
 const handleCourseChange = () => {
   if (disabledCourseSelected.value) {
     ElMessage.warning('停用课程不能新增或修改到教学计划中，请改选启用课程')
+  }
+}
+
+const triggerImport = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+
+  if (!file || !planId.value) {
+    return
+  }
+
+  importing.value = true
+  try {
+    const result = await importTeachingPlanExcelRequest(planId.value, file)
+    ElMessage.success(result.message || `成功导入 ${result.importedRows} 行`)
+    await loadData()
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '教学计划 Excel 导入失败'))
+  } finally {
+    importing.value = false
+  }
+}
+
+const handleExport = async () => {
+  if (!planId.value) {
+    return
+  }
+
+  exporting.value = true
+  try {
+    const response = await exportTeachingPlanExcelRequest(planId.value)
+    const fileName =
+      resolveDownloadFileName(response.headers['content-disposition']) ||
+      `${plan.value?.name || 'teaching-plan'}-export.xlsx`
+    downloadBlobFile(response.data, fileName)
+    ElMessage.success('教学计划 Excel 导出成功')
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '教学计划 Excel 导出失败'))
+  } finally {
+    exporting.value = false
+  }
+}
+
+const handleTemplateDownload = async () => {
+  templateDownloading.value = true
+  try {
+    const response = await downloadTeachingPlanTemplateRequest(plan.value?.grade?.educationSystem || 'FIVE_YEAR')
+    const fileName =
+      resolveDownloadFileName(response.headers['content-disposition']) || 'teaching-plan-template.xlsx'
+    downloadBlobFile(response.data, fileName)
+    ElMessage.success('教学计划模板下载成功')
+  } catch (error) {
+    ElMessage.error(extractErrorMessage(error, '教学计划模板下载失败'))
+  } finally {
+    templateDownloading.value = false
   }
 }
 
@@ -554,6 +655,10 @@ onMounted(loadData)
 
 .warning-text {
   color: var(--el-color-warning);
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 @media (max-width: 900px) {

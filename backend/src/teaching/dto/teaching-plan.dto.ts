@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDecimal, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { TEACHING_PLAN_TERM_TYPES } from '../teaching.constants';
+import { EDUCATION_SYSTEMS, TEACHING_PLAN_TERM_TYPES } from '../teaching.constants';
 
 export class CreateTeachingPlanDto {
   @ApiProperty({ description: '年级 ID' })
@@ -41,6 +41,13 @@ export class TeachingPlanQueryDto {
   @IsOptional()
   @IsString()
   keyword?: string;
+}
+
+export class TeachingPlanExcelTemplateQueryDto {
+  @ApiPropertyOptional({ description: '模板学制，默认 FIVE_YEAR', enum: EDUCATION_SYSTEMS })
+  @IsOptional()
+  @IsIn(EDUCATION_SYSTEMS)
+  educationSystem?: string;
 }
 
 export class CreateTeachingPlanRowDto {
