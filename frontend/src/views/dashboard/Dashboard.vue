@@ -26,7 +26,20 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import { User, UserFilled, Avatar, Document, Calendar, Memo, Clock, Timer, DataLine, Setting } from '@element-plus/icons-vue'
+import {
+  User,
+  UserFilled,
+  Avatar,
+  Document,
+  Calendar,
+  Memo,
+  Clock,
+  Timer,
+  DataLine,
+  Setting,
+  Collection,
+  Notebook,
+} from '@element-plus/icons-vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -43,11 +56,13 @@ const currentDate = computed(() => {
 const modules = computed(() => {
   const allModules = [
     { path: '/users', title: '用户管理', description: '管理系统用户账号', icon: User, roles: ['ADMIN'] },
+    { path: '/teaching/majors', title: '专业管理', description: '维护专业基础资料', icon: Collection },
+    { path: '/teaching/grades', title: '年级管理', description: '维护年级和毕业状态', icon: Memo },
+    { path: '/teaching/courses', title: '课程管理', description: '管理公共课与专业课', icon: Notebook },
+    { path: '/teaching/plans', title: '教学计划', description: '查看和创建实施性教学计划', icon: Document },
     { path: '/students', title: '学生管理', description: '学生信息管理', icon: UserFilled },
     { path: '/teachers', title: '教师管理', description: '教师信息管理', icon: Avatar },
-    { path: '/teaching-plan', title: '授课计划', description: '教案管理', icon: Document },
     { path: '/schedule', title: '排课管理', description: '课程安排', icon: Calendar },
-    { path: '/grade', title: '成绩管理', description: '学生成绩', icon: Memo },
     { path: '/leave', title: '请假管理', description: '请假审批', icon: Clock },
     { path: '/attendance', title: '签到管理', description: '考勤打卡', icon: Timer },
     { path: '/statistics', title: '课时统计', description: '教师课时', icon: DataLine },

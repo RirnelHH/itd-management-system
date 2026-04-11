@@ -31,6 +31,33 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+
+        <el-sub-menu index="/teaching">
+          <template #title>
+            <el-icon><Reading /></el-icon>
+            <span>教研教学</span>
+          </template>
+
+          <el-menu-item index="/teaching/majors">
+            <el-icon><Collection /></el-icon>
+            <span>专业管理</span>
+          </el-menu-item>
+
+          <el-menu-item index="/teaching/grades">
+            <el-icon><Tickets /></el-icon>
+            <span>年级管理</span>
+          </el-menu-item>
+
+          <el-menu-item index="/teaching/courses">
+            <el-icon><Notebook /></el-icon>
+            <span>课程管理</span>
+          </el-menu-item>
+
+          <el-menu-item index="/teaching/plans">
+            <el-icon><Document /></el-icon>
+            <span>教学计划</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -70,14 +97,20 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
-  House, User, UserFilled, ArrowDown, Message
+  House, User, UserFilled, ArrowDown, Message, Reading, Collection, Tickets, Notebook, Document
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-const activeMenu = computed(() => route.path)
+const activeMenu = computed(() => {
+  if (route.path.startsWith('/teaching/plans/')) {
+    return '/teaching/plans'
+  }
+
+  return route.path
+})
 const pageTitle = computed(() => (route.meta.title as string) || '首页')
 
 const handleCommand = (command: string) => {

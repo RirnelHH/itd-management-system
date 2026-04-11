@@ -46,6 +46,36 @@ const routes: RouteRecordRaw[] = [
         name: 'Contacts',
         component: () => import('../views/contacts/Contacts.vue'),
         meta: { title: '通讯录' }
+      },
+      {
+        path: 'teaching/majors',
+        name: 'TeachingMajors',
+        component: () => import('../views/teaching/Majors.vue'),
+        meta: { title: '专业管理' }
+      },
+      {
+        path: 'teaching/grades',
+        name: 'TeachingGrades',
+        component: () => import('../views/teaching/Grades.vue'),
+        meta: { title: '年级管理' }
+      },
+      {
+        path: 'teaching/courses',
+        name: 'TeachingCourses',
+        component: () => import('../views/teaching/Courses.vue'),
+        meta: { title: '课程管理' }
+      },
+      {
+        path: 'teaching/plans',
+        name: 'TeachingPlans',
+        component: () => import('../views/teaching/TeachingPlans.vue'),
+        meta: { title: '教学计划列表' }
+      },
+      {
+        path: 'teaching/plans/:id',
+        name: 'TeachingPlanDetail',
+        component: () => import('../views/teaching/TeachingPlanDetailPlaceholder.vue'),
+        meta: { title: '教学计划详情' }
       }
     ]
   }
