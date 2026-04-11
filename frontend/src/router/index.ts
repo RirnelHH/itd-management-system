@@ -74,7 +74,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'teaching/plans/:id',
         name: 'TeachingPlanDetail',
-        component: () => import('../views/teaching/TeachingPlanDetailPlaceholder.vue'),
+        component: () => import('../views/teaching/TeachingPlanDetail.vue'),
         meta: { title: '教学计划详情' }
       }
     ]

@@ -4,6 +4,7 @@ import type {
   CourseType,
   EducationSystem,
   GradeStatus,
+  TeachingPlanTermType,
 } from '../types/teaching'
 
 export const EDUCATION_SYSTEM_OPTIONS: Array<{ label: string; value: EducationSystem }> = [
@@ -31,6 +32,11 @@ export const COURSE_STATUS_OPTIONS: Array<{ label: string; value: CourseStatus }
   { label: '停用', value: 'DISABLED' },
 ]
 
+export const TEACHING_PLAN_TERM_TYPE_OPTIONS: Array<{ label: string; value: TeachingPlanTermType }> = [
+  { label: '校内教学', value: 'SCHOOL' },
+  { label: '岗位实习', value: 'INTERNSHIP' },
+]
+
 export const getEducationSystemLabel = (value?: EducationSystem | string | null) =>
   EDUCATION_SYSTEM_OPTIONS.find((option) => option.value === value)?.label || '-'
 
@@ -45,6 +51,9 @@ export const getCourseSourceTypeLabel = (value?: CourseSourceType | string | nul
 
 export const getCourseStatusLabel = (value?: CourseStatus | string | null) =>
   COURSE_STATUS_OPTIONS.find((option) => option.value === value)?.label || '-'
+
+export const getTeachingPlanTermTypeLabel = (value?: TeachingPlanTermType | string | null) =>
+  TEACHING_PLAN_TERM_TYPE_OPTIONS.find((option) => option.value === value)?.label || '-'
 
 export const isMajorCourse = (courseType?: CourseType | string | null) => courseType === 'MAJOR'
 

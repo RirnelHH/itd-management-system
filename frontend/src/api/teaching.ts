@@ -10,8 +10,11 @@ import type {
   MajorPayload,
   MajorQuery,
   TeachingPlan,
+  TeachingPlanDetail,
   TeachingPlanPayload,
   TeachingPlanQuery,
+  TeachingPlanRow,
+  TeachingPlanRowPayload,
 } from '../types/teaching'
 
 export const fetchMajorsRequest = async (params: MajorQuery = {}) => {
@@ -84,6 +87,11 @@ export const createTeachingPlanRequest = async (payload: TeachingPlanPayload) =>
   return data
 }
 
+export const fetchTeachingPlanDetailRequest = async (id: string) => {
+  const { data } = await api.get<TeachingPlanDetail>(`/teaching-plans/${id}`)
+  return data
+}
+
 export const updateTeachingPlanRequest = async (id: string, payload: Partial<TeachingPlanPayload>) => {
   const { data } = await api.patch<TeachingPlan>(`/teaching-plans/${id}`, payload)
   return data
@@ -91,5 +99,24 @@ export const updateTeachingPlanRequest = async (id: string, payload: Partial<Tea
 
 export const deleteTeachingPlanRequest = async (id: string) => {
   const { data } = await api.delete<{ message: string }>(`/teaching-plans/${id}`)
+  return data
+}
+
+export const createTeachingPlanRowRequest = async (id: string, payload: TeachingPlanRowPayload) => {
+  const { data } = await api.post<TeachingPlanRow>(`/teaching-plans/${id}/rows`, payload)
+  return data
+}
+
+export const updateTeachingPlanRowRequest = async (
+  id: string,
+  rowId: string,
+  payload: Partial<TeachingPlanRowPayload>,
+) => {
+  const { data } = await api.patch<TeachingPlanRow>(`/teaching-plans/${id}/rows/${rowId}`, payload)
+  return data
+}
+
+export const deleteTeachingPlanRowRequest = async (id: string, rowId: string) => {
+  const { data } = await api.delete<{ message: string }>(`/teaching-plans/${id}/rows/${rowId}`)
   return data
 }

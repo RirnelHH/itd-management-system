@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>教学计划列表</h2>
-        <p class="page-desc">查看、创建和维护实施性教学计划，详情页入口已预留给下一批。</p>
+        <p class="page-desc">查看、创建和维护实施性教学计划，支持进入详情页维护计划明细。</p>
       </div>
       <div class="header-actions">
         <el-button @click="loadData">刷新</el-button>

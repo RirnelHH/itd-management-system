@@ -3,6 +3,7 @@ export type GradeStatus = 'ACTIVE' | 'GRADUATED'
 export type CourseType = 'PUBLIC' | 'MAJOR'
 export type CourseSourceType = 'MANUAL' | 'PLAN_IMPORT'
 export type CourseStatus = 'ACTIVE' | 'DISABLED'
+export type TeachingPlanTermType = 'SCHOOL' | 'INTERNSHIP'
 
 export interface Major {
   id: string
@@ -59,6 +60,27 @@ export interface TeachingPlan {
   }
 }
 
+export interface TeachingPlanRow {
+  id: string
+  teachingPlanId: string
+  termNo: number
+  termType: TeachingPlanTermType
+  courseId: string | null
+  courseName: string
+  weeklyHoursRaw: string
+  weeklyHoursValue: string | null
+  teacherName: string | null
+  remark: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  course?: Course | null
+}
+
+export interface TeachingPlanDetail extends TeachingPlan {
+  rows: TeachingPlanRow[]
+}
+
 export interface MajorQuery {
   keyword?: string
   educationSystem?: EducationSystem | ''
@@ -107,4 +129,16 @@ export interface CoursePayload {
 export interface TeachingPlanPayload {
   name: string
   gradeId: string
+}
+
+export interface TeachingPlanRowPayload {
+  termNo: number
+  termType: TeachingPlanTermType
+  courseId: string
+  courseName?: string
+  weeklyHoursRaw: string
+  weeklyHoursValue?: string | null
+  teacherName?: string | null
+  remark?: string | null
+  sortOrder?: number
 }
