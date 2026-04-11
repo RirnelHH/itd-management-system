@@ -172,7 +172,6 @@ model TeachingPlanRow {
   course           Course?              @relation(fields: [courseId], references: [id])
   weeklyHoursRaw   String
   weeklyHoursValue Decimal?             @db.Decimal(10, 2)
-  teacherName      String?
   remark           String?
   sortOrder        Int                  @default(0)
   createdAt        DateTime             @default(now())

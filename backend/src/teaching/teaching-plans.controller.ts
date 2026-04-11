@@ -28,9 +28,13 @@ export class TeachingPlansController {
   @ApiOperation({ summary: '下载教学计划 Excel 模板' })
   @ApiQuery({ name: 'educationSystem', required: false, enum: ['THREE_YEAR', 'FIVE_YEAR'] })
   async downloadTemplate(@Query() query: TeachingPlanExcelTemplateQueryDto, @Res() res: Response) {
-    const buffer = await this.teachingPlanExcelService.buildTemplateBuffer(query.educationSystem);
+    void query;
+    const buffer = await this.teachingPlanExcelService.buildTemplateBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="teaching-plan-template.xlsx"');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent('实施性教学计划模板.xlsx')}"`,
+    );
     res.send(Buffer.from(buffer));
   }
 

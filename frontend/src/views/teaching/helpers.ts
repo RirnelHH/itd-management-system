@@ -130,29 +130,22 @@ export const validateTeachingPlanRowForm = (form: {
   termNo: number | null
   termType: TeachingPlanTermType | ''
   courseId: string
-  weeklyHoursRaw: string
 }) => ({
   termNo: form.termNo && form.termNo > 0 ? '' : '请输入正确的学期序号',
   termType: validateSelection(form.termType, '请选择学期类型'),
   courseId: validateSelection(form.courseId, '请选择课程'),
-  weeklyHoursRaw: validateRequiredText(form.weeklyHoursRaw, '请输入周学时'),
 })
 
 export const createTeachingPlanRowPayload = (form: {
   termNo: number
   termType: TeachingPlanTermType
   courseId: string
-  weeklyHoursRaw: string
-  teacherName: string
   remark: string
   sortOrder: number
 }): TeachingPlanRowPayload => ({
   termNo: form.termNo,
   termType: form.termType,
   courseId: form.courseId,
-  weeklyHoursRaw: form.weeklyHoursRaw.trim(),
-  weeklyHoursValue: normalizeWeeklyHoursValue(form.weeklyHoursRaw),
-  teacherName: form.teacherName.trim() || null,
   remark: form.remark.trim() || null,
   sortOrder: form.sortOrder,
 })

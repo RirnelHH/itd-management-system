@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDecimal, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { EDUCATION_SYSTEMS, TEACHING_PLAN_TERM_TYPES } from '../teaching.constants';
 
 export class CreateTeachingPlanDto {
@@ -44,7 +44,7 @@ export class TeachingPlanQueryDto {
 }
 
 export class TeachingPlanExcelTemplateQueryDto {
-  @ApiPropertyOptional({ description: '模板学制，默认 FIVE_YEAR', enum: EDUCATION_SYSTEMS })
+  @ApiPropertyOptional({ description: '模板学制，仅为兼容旧参数保留，当前固定返回原始模板文件', enum: EDUCATION_SYSTEMS })
   @IsOptional()
   @IsIn(EDUCATION_SYSTEMS)
   educationSystem?: string;
@@ -71,24 +71,6 @@ export class CreateTeachingPlanRowDto {
   @IsString()
   @MaxLength(100)
   courseName?: string;
-
-  @ApiProperty({ description: '周学时原始文本', example: '4' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
-  weeklyHoursRaw: string;
-
-  @ApiPropertyOptional({ description: '周学时数值', example: '4.00' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  weeklyHoursValue?: string;
-
-  @ApiPropertyOptional({ description: '任课教师', example: '张老师' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  teacherName?: string;
 
   @ApiPropertyOptional({ description: '备注' })
   @IsOptional()
@@ -128,25 +110,6 @@ export class UpdateTeachingPlanRowDto {
   @IsString()
   @MaxLength(100)
   courseName?: string;
-
-  @ApiPropertyOptional({ description: '周学时原始文本', example: '4' })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
-  weeklyHoursRaw?: string;
-
-  @ApiPropertyOptional({ description: '周学时数值', example: '4.00' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  weeklyHoursValue?: string;
-
-  @ApiPropertyOptional({ description: '任课教师', example: '张老师' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  teacherName?: string | null;
 
   @ApiPropertyOptional({ description: '备注' })
   @IsOptional()

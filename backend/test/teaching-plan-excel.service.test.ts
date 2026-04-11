@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { BadRequestException } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import * as path from 'node:path';
 import { TeachingPlanExcelService } from '../src/teaching/teaching-plan-excel.service';
 import { createMockFn } from './helpers/prisma.mock';
 
@@ -31,7 +33,6 @@ function createPrismaMock() {
             courseName: '思想道德与法治',
             weeklyHoursRaw: '4',
             weeklyHoursValue: '4.00',
-            teacherName: '李老师',
             remark: null,
             sortOrder: 0,
             createdAt: new Date('2026-04-01T00:00:00Z'),
@@ -39,6 +40,7 @@ function createPrismaMock() {
               id: 'course-public',
               name: '思想道德与法治',
               courseType: 'PUBLIC',
+              weeklyHours: '4.00',
               major: null,
             },
           },
@@ -51,6 +53,7 @@ function createPrismaMock() {
           id: 'course-public',
           name: '思想道德与法治',
           courseType: 'PUBLIC',
+          weeklyHours: '4.00',
           majorId: null,
           major: null,
         },
@@ -58,6 +61,7 @@ function createPrismaMock() {
           id: 'course-major',
           name: '岗位实习',
           courseType: 'MAJOR',
+          weeklyHours: '30.00',
           majorId: 'major-1',
           major: {
             id: 'major-1',
@@ -101,7 +105,18 @@ async function createWorkbookBuffer(rows: Array<Array<string | number>>) {
   return Buffer.from(buffer);
 }
 
+async function ensureTemplateFile() {
+  const templatePath = path.resolve(process.cwd(), 'resources', '实施性教学计划模板.xlsx');
+  await mkdir(path.dirname(templatePath), { recursive: true });
+  const buffer = await createWorkbookBuffer([]);
+  await writeFile(templatePath, buffer);
+  return async () => {
+    await rm(templatePath, { force: true });
+  };
+}
+
 test('TeachingPlanExcelService: 五年制非法实习学期会被阻断', async () => {
+  const cleanup = await ensureTemplateFile();
   const prisma = createPrismaMock();
   const service = new TeachingPlanExcelService(prisma as any);
   const buffer = await createWorkbookBuffer([
@@ -119,9 +134,11 @@ test('TeachingPlanExcelService: 五年制非法实习学期会被阻断', async 
       return true;
     },
   );
+  await cleanup();
 });
 
 test('TeachingPlanExcelService: 成功导入会替换原计划行', async () => {
+  const cleanup = await ensureTemplateFile();
   const prisma = createPrismaMock();
   const service = new TeachingPlanExcelService(prisma as any);
   const buffer = await createWorkbookBuffer([
@@ -140,9 +157,12 @@ test('TeachingPlanExcelService: 成功导入会替换原计划行', async () => 
   assert.equal(prisma.teachingPlanRow.deleteMany.calls.length, 1);
   assert.equal(prisma.teachingPlanRow.createMany.calls.length, 1);
   assert.equal(prisma.teachingPlanRow.createMany.calls[0][0].data.length, 2);
+  assert.equal(prisma.teachingPlanRow.createMany.calls[0][0].data[0].weeklyHoursRaw, '4.00');
+  await cleanup();
 });
 
 test('TeachingPlanExcelService: 导出会生成 xlsx 缓冲和文件名', async () => {
+  const cleanup = await ensureTemplateFile();
   const prisma = createPrismaMock();
   const service = new TeachingPlanExcelService(prisma as any);
 
@@ -150,4 +170,5 @@ test('TeachingPlanExcelService: 导出会生成 xlsx 缓冲和文件名', async 
 
   assert.ok(Buffer.from(result.buffer).length > 0);
   assert.match(result.fileName, /教学计划导出\.xlsx$/);
+  await cleanup();
 });

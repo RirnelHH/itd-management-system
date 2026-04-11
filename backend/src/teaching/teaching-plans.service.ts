@@ -117,6 +117,7 @@ export class TeachingPlansService {
   async createRow(teachingPlanId: string, dto: CreateTeachingPlanRowDto) {
     await this.ensurePlanExists(teachingPlanId);
     const course = await this.ensureCourseUsable(dto.courseId);
+    const weeklyHours = this.buildWeeklyHoursSnapshot(course.weeklyHours);
 
     return this.prisma.teachingPlanRow.create({
       data: {
@@ -125,9 +126,8 @@ export class TeachingPlansService {
         termType: dto.termType as any,
         courseId: dto.courseId,
         courseName: dto.courseName || course.name,
-        weeklyHoursRaw: dto.weeklyHoursRaw,
-        weeklyHoursValue: dto.weeklyHoursValue ? new Prisma.Decimal(dto.weeklyHoursValue) : null,
-        teacherName: dto.teacherName,
+        weeklyHoursRaw: weeklyHours.raw,
+        weeklyHoursValue: weeklyHours.value,
         remark: dto.remark,
         sortOrder: dto.sortOrder ?? 0,
       },
@@ -140,6 +140,8 @@ export class TeachingPlansService {
   async updateRow(teachingPlanId: string, rowId: string, dto: UpdateTeachingPlanRowDto) {
     const row = await this.ensureRowExists(teachingPlanId, rowId);
     const course = dto.courseId ? await this.ensureCourseUsable(dto.courseId) : null;
+    const sourceCourse = course || (row.courseId ? await this.prisma.course.findUnique({ where: { id: row.courseId } }) : null);
+    const weeklyHours = this.buildWeeklyHoursSnapshot(sourceCourse?.weeklyHours);
 
     return this.prisma.teachingPlanRow.update({
       where: { id: rowId },
@@ -148,13 +150,8 @@ export class TeachingPlansService {
         termType: dto.termType as any,
         courseId: dto.courseId,
         courseName: dto.courseName || course?.name,
-        weeklyHoursRaw: dto.weeklyHoursRaw,
-        weeklyHoursValue: dto.weeklyHoursValue
-          ? new Prisma.Decimal(dto.weeklyHoursValue)
-          : dto.weeklyHoursValue === undefined
-            ? undefined
-            : null,
-        teacherName: dto.teacherName,
+        weeklyHoursRaw: weeklyHours.raw,
+        weeklyHoursValue: weeklyHours.value,
         remark: dto.remark,
         sortOrder: dto.sortOrder,
       },
@@ -213,5 +210,20 @@ export class TeachingPlansService {
       throw new BadRequestException('停用课程不能新增或修改到教学计划中');
     }
     return course;
+  }
+
+  private buildWeeklyHoursSnapshot(value?: Prisma.Decimal | string | number | null) {
+    if (value == null || value === '') {
+      return {
+        raw: '',
+        value: null,
+      };
+    }
+
+    const normalized = typeof value === 'string' ? value : value.toString();
+    return {
+      raw: normalized,
+      value: new Prisma.Decimal(normalized),
+    };
   }
 }

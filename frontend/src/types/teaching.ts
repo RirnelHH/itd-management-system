@@ -69,7 +69,6 @@ export interface TeachingPlanRow {
   courseName: string
   weeklyHoursRaw: string
   weeklyHoursValue: string | null
-  teacherName: string | null
   remark: string | null
   sortOrder: number
   createdAt: string
@@ -136,9 +135,6 @@ export interface TeachingPlanRowPayload {
   termType: TeachingPlanTermType
   courseId: string
   courseName?: string
-  weeklyHoursRaw: string
-  weeklyHoursValue?: string | null
-  teacherName?: string | null
   remark?: string | null
   sortOrder?: number
 }

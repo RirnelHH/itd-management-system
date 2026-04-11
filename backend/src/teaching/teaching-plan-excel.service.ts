@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
+import { access, readFile } from 'node:fs/promises';
+import * as path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 
 type EducationSystem = 'THREE_YEAR' | 'FIVE_YEAR';
@@ -14,7 +16,6 @@ type TemplateColumnKey =
   | 'courseType'
   | 'majorName'
   | 'weeklyHoursRaw'
-  | 'teacherName'
   | 'remark'
   | 'sortOrder';
 
@@ -24,29 +25,19 @@ type ParsedImportRow = {
   courseId: string;
   courseName: string;
   weeklyHoursRaw: string;
-  weeklyHoursValue: string | null;
-  teacherName: string | null;
+  weeklyHoursValue: Prisma.Decimal | null;
   remark: string | null;
   sortOrder: number;
 };
 
-const TEMPLATE_SHEET_NAME = '教学计划';
-const TEMPLATE_VERSION = 'v1';
-const HEADER_ROW_NO = 7;
-const DATA_START_ROW_NO = 8;
+type TemplateContext = {
+  worksheet: ExcelJS.Worksheet;
+  headerRowNo: number;
+  columns: Partial<Record<TemplateColumnKey, number>>;
+};
 
-const TEMPLATE_COLUMNS: Array<{ key: TemplateColumnKey; header: string; width: number; required?: boolean }> = [
-  { key: 'termNo', header: '学期序号', width: 12, required: true },
-  { key: 'termType', header: '学期类型', width: 14, required: true },
-  { key: 'courseId', header: '课程ID', width: 40 },
-  { key: 'courseName', header: '课程名称', width: 24, required: true },
-  { key: 'courseType', header: '课程类型', width: 14 },
-  { key: 'majorName', header: '归属专业', width: 20 },
-  { key: 'weeklyHoursRaw', header: '周学时', width: 16, required: true },
-  { key: 'teacherName', header: '任课教师', width: 16 },
-  { key: 'remark', header: '备注', width: 24 },
-  { key: 'sortOrder', header: '排序', width: 10 },
-];
+const TEMPLATE_FILE_NAME = '实施性教学计划模板.xlsx';
+const TEMPLATE_FILE_PATH = path.resolve(process.cwd(), 'resources', TEMPLATE_FILE_NAME);
 
 const TERM_TYPE_LABELS: Record<TeachingPlanTermType, string> = {
   SCHOOL: '在校',
@@ -58,41 +49,30 @@ const COURSE_TYPE_LABELS: Record<string, string> = {
   MAJOR: '专业课',
 };
 
-const EDUCATION_SYSTEM_LABELS: Record<EducationSystem, string> = {
-  FIVE_YEAR: '五年制',
-  THREE_YEAR: '三年制',
-};
-
 const FIVE_YEAR_RULE = {
   maxTermNo: 10,
   schoolTermRange: [1, 8] as const,
   internshipTermRange: [9, 10] as const,
 };
 
+const TEMPLATE_HEADER_ALIASES: Record<TemplateColumnKey, string[]> = {
+  termNo: ['学期序号', '学期号', '学期', '学年学期'],
+  termType: ['学期类型', '教学形式', '学期性质'],
+  courseId: ['课程ID', '课程 Id', '课程编号', '课程代码'],
+  courseName: ['课程名称', '课程名'],
+  courseType: ['课程类型', '课程类别'],
+  majorName: ['归属专业', '所属专业', '适用专业', '专业'],
+  weeklyHoursRaw: ['周学时', '周课时'],
+  remark: ['备注', '说明'],
+  sortOrder: ['排序', '序号'],
+};
+
 @Injectable()
 export class TeachingPlanExcelService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async buildTemplateBuffer(educationSystemInput?: string) {
-    const educationSystem = this.normalizeEducationSystem(educationSystemInput);
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet(TEMPLATE_SHEET_NAME);
-
-    this.setupTemplateSheet(sheet);
-
-    sheet.getCell('A1').value = '教学计划 Excel 导入模板';
-    sheet.getCell('A2').value = `模板版本：${TEMPLATE_VERSION}`;
-    sheet.getCell('A3').value = '说明：请勿调整表头顺序，导入时会按整份计划覆盖现有计划行。';
-    sheet.getCell('A4').value = `学制：${EDUCATION_SYSTEM_LABELS[educationSystem]}`;
-    sheet.getCell('A5').value =
-      educationSystem === 'FIVE_YEAR'
-        ? '五年制规则：1-8 学期为在校，9-10 学期为企业实习。'
-        : '三年制模板扩展位已预留，当前导入主链路优先保证五年制。';
-
-    this.writeHeaderRow(sheet);
-    this.writeTemplateExampleRows(sheet, educationSystem);
-
-    return workbook.xlsx.writeBuffer();
+  async buildTemplateBuffer() {
+    return this.readTemplateFileBuffer();
   }
 
   async buildExportFile(planId: string) {
@@ -118,32 +98,10 @@ export class TeachingPlanExcelService {
     }
 
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet(TEMPLATE_SHEET_NAME);
-    this.setupTemplateSheet(sheet);
+    await workbook.xlsx.load(await this.readTemplateFileBuffer() as any);
+    const template = this.locateTemplateContext(workbook);
 
-    const educationSystem = plan.grade.educationSystem as EducationSystem;
-    sheet.getCell('A1').value = '教学计划导出';
-    sheet.getCell('A2').value = `模板版本：${TEMPLATE_VERSION}`;
-    sheet.getCell('A3').value = `教学计划：${plan.name}`;
-    sheet.getCell('A4').value = `所属年级：${plan.grade.name}`;
-    sheet.getCell('A5').value = `所属专业：${plan.grade.major.name}`;
-    sheet.getCell('A6').value = `学制：${EDUCATION_SYSTEM_LABELS[educationSystem]}`;
-
-    this.writeHeaderRow(sheet);
-
-    plan.rows.forEach((row, index) => {
-      const excelRow = sheet.getRow(DATA_START_ROW_NO + index);
-      excelRow.getCell(1).value = row.termNo;
-      excelRow.getCell(2).value = TERM_TYPE_LABELS[row.termType as TeachingPlanTermType];
-      excelRow.getCell(3).value = row.courseId || '';
-      excelRow.getCell(4).value = row.courseName;
-      excelRow.getCell(5).value = row.course?.courseType ? COURSE_TYPE_LABELS[row.course.courseType] : '';
-      excelRow.getCell(6).value = row.course?.major?.name || plan.grade.major.name || '';
-      excelRow.getCell(7).value = row.weeklyHoursRaw;
-      excelRow.getCell(8).value = row.teacherName || '';
-      excelRow.getCell(9).value = row.remark || '';
-      excelRow.getCell(10).value = row.sortOrder;
-    });
+    this.fillPlanRows(template, plan.rows, plan.grade.major.name);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return {
@@ -173,13 +131,7 @@ export class TeachingPlanExcelService {
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(file.buffer as any);
-    const sheet = workbook.getWorksheet(TEMPLATE_SHEET_NAME) || workbook.worksheets[0];
-
-    if (!sheet) {
-      throw new BadRequestException('Excel 中未找到可解析的工作表');
-    }
-
-    this.validateHeaderRow(sheet);
+    const template = this.locateTemplateContext(workbook);
 
     const allowedCourses = await this.prisma.course.findMany({
       where: {
@@ -190,9 +142,8 @@ export class TeachingPlanExcelService {
       orderBy: [{ courseType: 'asc' }, { name: 'asc' }],
     });
 
-    const parsedRows = this.parseDataRows(sheet, {
+    const parsedRows = this.parseDataRows(template, {
       educationSystem: plan.grade.educationSystem as EducationSystem,
-      planMajorId: plan.grade.majorId,
       planMajorName: plan.grade.major.name,
       allowedCourses,
     });
@@ -208,8 +159,7 @@ export class TeachingPlanExcelService {
             courseId: row.courseId,
             courseName: row.courseName,
             weeklyHoursRaw: row.weeklyHoursRaw,
-            weeklyHoursValue: row.weeklyHoursValue ? new Prisma.Decimal(row.weeklyHoursValue) : null,
-            teacherName: row.teacherName,
+            weeklyHoursValue: row.weeklyHoursValue,
             remark: row.remark,
             sortOrder: row.sortOrder,
           })),
@@ -218,113 +168,133 @@ export class TeachingPlanExcelService {
     });
 
     return {
-      message: '教学计划 Excel 导入成功',
+      message: `教学计划导入成功，共导入 ${parsedRows.length} 行，替换原有 ${plan.rows.length} 行`,
       importedRows: parsedRows.length,
       replacedRows: plan.rows.length,
       educationSystem: plan.grade.educationSystem,
-      templateVersion: TEMPLATE_VERSION,
+      templateVersion: TEMPLATE_FILE_NAME,
       fileName: file.originalname,
     };
   }
 
-  private setupTemplateSheet(sheet: ExcelJS.Worksheet) {
-    sheet.properties.defaultRowHeight = 22;
-    TEMPLATE_COLUMNS.forEach((column, index) => {
-      sheet.getColumn(index + 1).width = column.width;
-    });
-  }
-
-  private writeHeaderRow(sheet: ExcelJS.Worksheet) {
-    const headerRow = sheet.getRow(HEADER_ROW_NO);
-    TEMPLATE_COLUMNS.forEach((column, index) => {
-      const cell = headerRow.getCell(index + 1);
-      cell.value = column.header;
-      cell.font = { bold: true };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF3F4F6' },
-      };
-      cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      };
-    });
-  }
-
-  private writeTemplateExampleRows(sheet: ExcelJS.Worksheet, educationSystem: EducationSystem) {
-    const examples =
-      educationSystem === 'FIVE_YEAR'
-        ? [
-            [1, '在校', '', '示例课程A', '公共课', '', '4', '张老师', '示例数据，导入前请删除或替换', 1],
-            [9, '企业实习', '', '岗位实习', '专业课', '', '30节×18周', '', '五年制实习学期示例', 2],
-          ]
-        : [[1, '在校', '', '示例课程A', '公共课', '', '4', '张老师', '三年制模板扩展位', 1]];
-
-    examples.forEach((values, index) => {
-      const row = sheet.getRow(DATA_START_ROW_NO + index);
-      values.forEach((value, valueIndex) => {
-        row.getCell(valueIndex + 1).value = value;
-      });
-    });
-  }
-
-  private validateHeaderRow(sheet: ExcelJS.Worksheet) {
-    const expectedHeaders = TEMPLATE_COLUMNS.map((item) => item.header);
-    const actualHeaders = TEMPLATE_COLUMNS.map((_, index) => this.getCellText(sheet.getRow(HEADER_ROW_NO).getCell(index + 1)));
-
-    const mismatched = expectedHeaders.filter((header, index) => header !== actualHeaders[index]);
-    if (mismatched.length) {
-      throw new BadRequestException(`模板表头不匹配，请先下载最新模板。期望表头：${expectedHeaders.join('、')}`);
+  private async readTemplateFileBuffer() {
+    try {
+      await access(TEMPLATE_FILE_PATH);
+      return await readFile(TEMPLATE_FILE_PATH);
+    } catch {
+      throw new InternalServerErrorException(
+        `模板文件不存在，请将原始模板放到 ${TEMPLATE_FILE_PATH}`,
+      );
     }
   }
 
+  private locateTemplateContext(workbook: ExcelJS.Workbook): TemplateContext {
+    for (const worksheet of workbook.worksheets) {
+      for (let rowNo = 1; rowNo <= Math.min(worksheet.rowCount, 40); rowNo += 1) {
+        const columns = this.matchHeaderColumns(worksheet.getRow(rowNo));
+        if (columns.courseName && columns.termNo) {
+          return {
+            worksheet,
+            headerRowNo: rowNo,
+            columns,
+          };
+        }
+      }
+    }
+
+    throw new BadRequestException(
+      '模板不匹配：未识别到“学期/课程名称”等表头，请使用 backend/resources/实施性教学计划模板.xlsx 原模板',
+    );
+  }
+
+  private matchHeaderColumns(row: ExcelJS.Row) {
+    const columns: Partial<Record<TemplateColumnKey, number>> = {};
+
+    for (let columnNo = 1; columnNo <= row.cellCount; columnNo += 1) {
+      const text = this.normalizeHeader(this.getCellText(row.getCell(columnNo)));
+      if (!text) {
+        continue;
+      }
+
+      for (const [key, aliases] of Object.entries(TEMPLATE_HEADER_ALIASES) as Array<[TemplateColumnKey, string[]]>) {
+        if (aliases.some((alias) => text === this.normalizeHeader(alias))) {
+          columns[key] = columnNo;
+        }
+      }
+    }
+
+    return columns;
+  }
+
+  private fillPlanRows(template: TemplateContext, rows: Array<any>, fallbackMajorName: string) {
+    const { worksheet, headerRowNo, columns } = template;
+    const dataStartRowNo = headerRowNo + 1;
+    const clearToRowNo = Math.max(worksheet.rowCount, dataStartRowNo + rows.length + 20);
+
+    for (let rowNo = dataStartRowNo; rowNo <= clearToRowNo; rowNo += 1) {
+      this.clearMappedCells(worksheet.getRow(rowNo), columns);
+    }
+
+    rows.forEach((row, index) => {
+      const excelRow = worksheet.getRow(dataStartRowNo + index);
+      this.writeMappedCell(excelRow, columns.termNo, row.termNo);
+      this.writeMappedCell(excelRow, columns.termType, TERM_TYPE_LABELS[row.termType as TeachingPlanTermType]);
+      this.writeMappedCell(excelRow, columns.courseId, row.courseId || '');
+      this.writeMappedCell(excelRow, columns.courseName, row.courseName);
+      this.writeMappedCell(
+        excelRow,
+        columns.courseType,
+        row.course?.courseType ? COURSE_TYPE_LABELS[row.course.courseType] : '',
+      );
+      this.writeMappedCell(excelRow, columns.majorName, row.course?.major?.name || fallbackMajorName || '');
+      this.writeMappedCell(excelRow, columns.weeklyHoursRaw, row.weeklyHoursRaw || '');
+      this.writeMappedCell(excelRow, columns.remark, row.remark || '');
+      this.writeMappedCell(excelRow, columns.sortOrder, row.sortOrder);
+    });
+  }
+
   private parseDataRows(
-    sheet: ExcelJS.Worksheet,
+    template: TemplateContext,
     context: {
       educationSystem: EducationSystem;
-      planMajorId: string;
       planMajorName: string;
       allowedCourses: Array<{
         id: string;
         name: string;
         status: string;
         courseType: string;
+        weeklyHours: Prisma.Decimal | null;
         majorId: string | null;
         major?: { id: string; name: string } | null;
       }>;
     },
   ) {
+    const { worksheet, headerRowNo, columns } = template;
     const errors: string[] = [];
     const parsedRows: ParsedImportRow[] = [];
-    const lastRowNumber = Math.max(sheet.rowCount, DATA_START_ROW_NO - 1);
+    const dataStartRowNo = headerRowNo + 1;
+    const lastRowNumber = Math.max(worksheet.rowCount, dataStartRowNo - 1);
 
-    for (let rowNumber = DATA_START_ROW_NO; rowNumber <= lastRowNumber; rowNumber += 1) {
-      const row = sheet.getRow(rowNumber);
-      const rawValues = this.readTemplateRow(row);
+    for (let rowNumber = dataStartRowNo; rowNumber <= lastRowNumber; rowNumber += 1) {
+      const row = worksheet.getRow(rowNumber);
+      const rawValues = this.readTemplateRow(row, columns);
       if (this.isRowEmpty(rawValues)) {
         continue;
       }
 
       const rowErrors: string[] = [];
       const termNo = this.parseInteger(rawValues.termNo);
-      const termType = this.parseTermType(rawValues.termType);
-      const weeklyHoursRaw = rawValues.weeklyHoursRaw.trim();
+      const termType = this.parseTermType(rawValues.termType) || (termNo ? this.inferTermType(context.educationSystem, termNo) : null);
       const sortOrder = this.parseInteger(rawValues.sortOrder) ?? parsedRows.length;
 
       if (!termNo) {
         rowErrors.push(`第 ${rowNumber} 行：学期序号不能为空，且必须为正整数`);
       }
-      if (!termType) {
-        rowErrors.push(`第 ${rowNumber} 行：学期类型仅支持 在校 / 企业实习`);
-      }
       if (!rawValues.courseName.trim()) {
         rowErrors.push(`第 ${rowNumber} 行：课程名称不能为空`);
       }
-      if (!weeklyHoursRaw) {
-        rowErrors.push(`第 ${rowNumber} 行：周学时不能为空`);
+      if (!termType) {
+        rowErrors.push(`第 ${rowNumber} 行：无法识别学期类型，请补充学期类型列或使用可推断的学期范围`);
       }
 
       if (termNo && termType) {
@@ -339,19 +309,23 @@ export class TeachingPlanExcelService {
         rowErrors.push(`第 ${rowNumber} 行：${course.error}`);
       }
 
+      if (!('error' in course) && course.weeklyHours == null) {
+        rowErrors.push(`第 ${rowNumber} 行：课程“${course.name}”未维护周课时，无法自动带出`);
+      }
+
       if (rowErrors.length) {
         errors.push(...rowErrors);
         continue;
       }
 
+      const weeklyHours = this.buildWeeklyHoursSnapshot((course as { weeklyHours: Prisma.Decimal }).weeklyHours);
       parsedRows.push({
         termNo: termNo as number,
         termType: termType as TeachingPlanTermType,
         courseId: (course as { id: string }).id,
         courseName: rawValues.courseName.trim(),
-        weeklyHoursRaw,
-        weeklyHoursValue: this.normalizeWeeklyHoursValue(weeklyHoursRaw),
-        teacherName: rawValues.teacherName.trim() || null,
+        weeklyHoursRaw: weeklyHours.raw,
+        weeklyHoursValue: weeklyHours.value,
         remark: rawValues.remark.trim() || null,
         sortOrder,
       });
@@ -370,6 +344,7 @@ export class TeachingPlanExcelService {
       id: string;
       name: string;
       courseType: string;
+      weeklyHours: Prisma.Decimal | null;
       majorId: string | null;
       major?: { id: string; name: string } | null;
     }>,
@@ -409,14 +384,44 @@ export class TeachingPlanExcelService {
     return candidates[0];
   }
 
-  private readTemplateRow(row: ExcelJS.Row): Record<TemplateColumnKey, string> {
-    return TEMPLATE_COLUMNS.reduce(
-      (result, column, index) => {
-        result[column.key] = this.getCellText(row.getCell(index + 1));
-        return result;
-      },
-      {} as Record<TemplateColumnKey, string>,
-    );
+  private readTemplateRow(
+    row: ExcelJS.Row,
+    columns: Partial<Record<TemplateColumnKey, number>>,
+  ): Record<TemplateColumnKey, string> {
+    return {
+      termNo: this.readMappedCell(row, columns.termNo),
+      termType: this.readMappedCell(row, columns.termType),
+      courseId: this.readMappedCell(row, columns.courseId),
+      courseName: this.readMappedCell(row, columns.courseName),
+      courseType: this.readMappedCell(row, columns.courseType),
+      majorName: this.readMappedCell(row, columns.majorName),
+      weeklyHoursRaw: this.readMappedCell(row, columns.weeklyHoursRaw),
+      remark: this.readMappedCell(row, columns.remark),
+      sortOrder: this.readMappedCell(row, columns.sortOrder),
+    };
+  }
+
+  private readMappedCell(row: ExcelJS.Row, columnNo?: number) {
+    if (!columnNo) {
+      return '';
+    }
+
+    return this.getCellText(row.getCell(columnNo));
+  }
+
+  private writeMappedCell(row: ExcelJS.Row, columnNo: number | undefined, value: string | number) {
+    if (!columnNo) {
+      return;
+    }
+    row.getCell(columnNo).value = value;
+  }
+
+  private clearMappedCells(row: ExcelJS.Row, columns: Partial<Record<TemplateColumnKey, number>>) {
+    Object.values(columns).forEach((columnNo) => {
+      if (columnNo) {
+        row.getCell(columnNo).value = null;
+      }
+    });
   }
 
   private isRowEmpty(values: Record<TemplateColumnKey, string>) {
@@ -437,14 +442,19 @@ export class TeachingPlanExcelService {
     return String(value).trim();
   }
 
+  private normalizeHeader(value: string) {
+    return value.replace(/\s+/g, '').replace(/[：:]/g, '').trim().toUpperCase();
+  }
+
   private parseInteger(value: string) {
     if (!value.trim()) {
       return null;
     }
-    if (!/^\d+$/.test(value.trim())) {
+    const matched = value.trim().match(/\d+/);
+    if (!matched) {
       return null;
     }
-    return Number(value.trim());
+    return Number(matched[0]);
   }
 
   private parseTermType(value: string): TeachingPlanTermType | null {
@@ -452,13 +462,12 @@ export class TeachingPlanExcelService {
     if (!normalized) {
       return null;
     }
-    if (['SCHOOL', '在校', '校内'].includes(normalized) || value.trim() === '在校' || value.trim() === '校内') {
+    if (['SCHOOL', '在校', '校内', '校内教学'].includes(normalized) || ['在校', '校内', '校内教学'].includes(value.trim())) {
       return 'SCHOOL';
     }
     if (
-      ['INTERNSHIP', '企业实习', '实习'].includes(normalized) ||
-      value.trim() === '企业实习' ||
-      value.trim() === '实习'
+      ['INTERNSHIP', '企业实习', '实习', '岗位实习'].includes(normalized) ||
+      ['企业实习', '实习', '岗位实习'].includes(value.trim())
     ) {
       return 'INTERNSHIP';
     }
@@ -479,9 +488,33 @@ export class TeachingPlanExcelService {
     return null;
   }
 
-  private normalizeWeeklyHoursValue(value: string) {
-    const trimmed = value.trim();
-    return /^(?:\d+)(?:\.\d{1,2})?$/.test(trimmed) ? trimmed : null;
+  private inferTermType(educationSystem: EducationSystem, termNo: number): TeachingPlanTermType | null {
+    if (educationSystem !== 'FIVE_YEAR') {
+      return 'SCHOOL';
+    }
+
+    if (termNo >= FIVE_YEAR_RULE.schoolTermRange[0] && termNo <= FIVE_YEAR_RULE.schoolTermRange[1]) {
+      return 'SCHOOL';
+    }
+    if (termNo >= FIVE_YEAR_RULE.internshipTermRange[0] && termNo <= FIVE_YEAR_RULE.internshipTermRange[1]) {
+      return 'INTERNSHIP';
+    }
+    return null;
+  }
+
+  private buildWeeklyHoursSnapshot(value?: Prisma.Decimal | string | number | null) {
+    if (value == null || value === '') {
+      return {
+        raw: '',
+        value: null,
+      };
+    }
+
+    const normalized = typeof value === 'string' ? value : value.toString();
+    return {
+      raw: normalized,
+      value: new Prisma.Decimal(normalized),
+    };
   }
 
   private validateTermRule(educationSystem: EducationSystem, termNo: number, termType: TeachingPlanTermType) {
@@ -498,15 +531,9 @@ export class TeachingPlanExcelService {
       ) {
         return '五年制企业实习学期必须在 9-10 学期';
       }
-      return '';
     }
 
-    // 三年制模板的列结构与主流程已预留；后续批次可在这里补充 1-4 在校、5-6 实习的严格校验。
     return '';
-  }
-
-  private normalizeEducationSystem(educationSystem?: string): EducationSystem {
-    return educationSystem === 'THREE_YEAR' ? 'THREE_YEAR' : 'FIVE_YEAR';
   }
 
   private buildFileName(fileName: string) {

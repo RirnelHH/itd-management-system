@@ -77,7 +77,6 @@ describe('teaching helpers', () => {
         courseName: '企业实践',
         weeklyHoursRaw: '20',
         weeklyHoursValue: '20',
-        teacherName: null,
         remark: null,
         sortOrder: 1,
         createdAt: '',
@@ -92,7 +91,6 @@ describe('teaching helpers', () => {
         courseName: '高等数学',
         weeklyHoursRaw: '4',
         weeklyHoursValue: '4',
-        teacherName: null,
         remark: null,
         sortOrder: 1,
         createdAt: '',
@@ -107,7 +105,6 @@ describe('teaching helpers', () => {
         courseName: 'Java 程序设计',
         weeklyHoursRaw: '5',
         weeklyHoursValue: '5',
-        teacherName: null,
         remark: null,
         sortOrder: 1,
         createdAt: '',
@@ -119,7 +116,7 @@ describe('teaching helpers', () => {
     expect(groups[1]?.title).toBe('第2学期 · 校内教学')
   })
 
-  it('normalizes teaching plan row payload and parses numeric weekly hours only when valid', () => {
+  it('normalizes teaching plan row payload and trims optional text fields', () => {
     expect(normalizeWeeklyHoursValue('4.5')).toBe('4.5')
     expect(normalizeWeeklyHoursValue('4学时')).toBeNull()
 
@@ -128,15 +125,10 @@ describe('teaching helpers', () => {
         termNo: 1,
         termType: 'SCHOOL',
         courseId: 'course-1',
-        weeklyHoursRaw: ' 4学时 ',
-        teacherName: ' 张老师 ',
         remark: ' 重点课程 ',
         sortOrder: 2,
       })
     ).toMatchObject({
-      weeklyHoursRaw: '4学时',
-      weeklyHoursValue: null,
-      teacherName: '张老师',
       remark: '重点课程',
     })
   })
