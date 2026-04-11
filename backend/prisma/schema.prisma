@@ -129,6 +129,7 @@ model Grade {
 model Course {
   id               String            @id @default(dbgenerated("(uuid())")) @db.Char(36)
   name             String
+  weeklyHours      Decimal?          @db.Decimal(10, 2)
   courseType       CourseType
   sourceType       CourseSourceType  @default(MANUAL)
   status           CourseStatus      @default(ACTIVE)

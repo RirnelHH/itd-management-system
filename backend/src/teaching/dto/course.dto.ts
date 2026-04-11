@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDecimal, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { COURSE_SOURCE_TYPES, COURSE_STATUSES, COURSE_TYPES } from '../teaching.constants';
 
 export class CreateCourseDto {
@@ -12,6 +12,11 @@ export class CreateCourseDto {
   @ApiProperty({ description: '课程类型', enum: COURSE_TYPES })
   @IsIn(COURSE_TYPES)
   courseType: string;
+
+  @ApiPropertyOptional({ description: '周课时', example: '4.00' })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '1,2' })
+  weeklyHours?: string;
 
   @ApiPropertyOptional({ description: '来源类型', enum: COURSE_SOURCE_TYPES })
   @IsOptional()
@@ -42,6 +47,11 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsIn(COURSE_TYPES)
   courseType?: string;
+
+  @ApiPropertyOptional({ description: '周课时', example: '4.00' })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '1,2' })
+  weeklyHours?: string | null;
 
   @ApiPropertyOptional({ description: '来源类型', enum: COURSE_SOURCE_TYPES })
   @IsOptional()

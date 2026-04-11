@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CoursesService } from '../src/teaching/courses.service';
 import { createMockFn } from './helpers/prisma.mock';
 
@@ -42,7 +43,7 @@ test('CoursesService: 公共课名称在公共课范围内必须唯一', async (
     } as any),
     (error: any) => {
       assert.ok(error instanceof BadRequestException);
-      assert.equal(error.message, '课程名称已存在');
+      assert.equal(error.message, '公共课“大学英语”已存在，不能重复创建或保存');
       return true;
     },
   );
@@ -67,10 +68,25 @@ test('CoursesService: 专业课名称在同一专业下必须唯一', async () =
     } as any),
     (error: any) => {
       assert.ok(error instanceof BadRequestException);
-      assert.equal(error.message, '课程名称已存在');
+      assert.equal(error.message, '该专业下课程“数据结构”已存在，不能重复创建或保存');
       return true;
     },
   );
+});
+
+test('CoursesService: 创建课程时写入周课时', async () => {
+  const prisma = createPrismaMock();
+  const service = new CoursesService(prisma as any);
+
+  const result = await service.create({
+    name: '程序设计基础',
+    courseType: 'PUBLIC',
+    weeklyHours: '4.50',
+  } as any);
+
+  assert.equal(result.name, '程序设计基础');
+  assert.ok(result.weeklyHours instanceof Prisma.Decimal);
+  assert.equal(result.weeklyHours.toString(), '4.5');
 });
 
 test('CoursesService: 专业课必须绑定专业', async () => {

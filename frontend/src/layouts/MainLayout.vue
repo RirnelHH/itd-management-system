@@ -3,8 +3,7 @@
     <!-- 侧边栏 -->
     <el-aside width="220px">
       <div class="logo">
-        <span class="logo-text">IT&D</span>
-        <span class="logo-sub">管理系统</span>
+        <span class="logo-title">信息技术与设计系管理系统</span>
       </div>
       
       <el-menu
@@ -135,23 +134,20 @@ const handleCommand = (command: string) => {
 }
 
 .logo {
-  height: 60px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
 }
 
-.logo-text {
-  font-size: 20px;
+.logo-title {
+  font-size: 18px;
   font-weight: 700;
-  color: var(--accent);
-  margin-right: 4px;
-}
-
-.logo-sub {
-  font-size: 12px;
-  color: var(--text-muted);
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text-primary);
 }
 
 .sidebar-menu {

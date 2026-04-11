@@ -230,6 +230,9 @@ const handleDelete = async (major: Major) => {
   try {
     await ElMessageBox.confirm(`确定删除专业“${major.name}”吗？`, '删除确认', {
       type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      distinguishCancelAndClose: true,
     })
     const response = await deleteMajorRequest(major.id)
     ElMessage.success(response.message || '专业删除成功')

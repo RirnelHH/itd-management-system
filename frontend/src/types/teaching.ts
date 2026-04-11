@@ -34,6 +34,7 @@ export interface Grade {
 export interface Course {
   id: string
   name: string
+  weeklyHours: string | null
   courseType: CourseType
   sourceType: CourseSourceType
   status: CourseStatus
@@ -96,6 +97,7 @@ export interface GradePayload {
 
 export interface CoursePayload {
   name: string
+  weeklyHours?: string | null
   courseType: CourseType
   sourceType?: CourseSourceType
   status?: CourseStatus

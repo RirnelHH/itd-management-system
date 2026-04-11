@@ -38,8 +38,13 @@
     </el-card>
 
     <el-card class="table-card">
-      <el-table v-loading="loading" :data="courses" stripe>
+      <el-table v-loading="loading" :data="courses" class="teaching-table">
         <el-table-column prop="name" label="课程名称" min-width="220" />
+        <el-table-column label="周课时" width="120">
+          <template #default="{ row }">
+            {{ formatWeeklyHours(row.weeklyHours) }}
+          </template>
+        </el-table-column>
         <el-table-column label="课程类型" width="120">
           <template #default="{ row }">
             <el-tag :type="row.courseType === 'PUBLIC' ? 'info' : 'success'">
@@ -74,9 +79,9 @@
             {{ formatDateTime(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openEditDialog(row)">编辑</el-button>
+            <el-button size="small" class="action-button action-button-edit" @click="openEditDialog(row)">编辑</el-button>
             <el-button size="small" type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -87,6 +92,9 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="课程名称" prop="name">
           <el-input v-model="form.name" maxlength="100" placeholder="请输入课程名称" />
+        </el-form-item>
+        <el-form-item label="周课时" prop="weeklyHours">
+          <el-input v-model="form.weeklyHours" maxlength="10" placeholder="请输入周课时，如 4 或 4.5" />
         </el-form-item>
         <el-form-item label="课程类型" prop="courseType">
           <el-select v-model="form.courseType" placeholder="请选择课程类型" style="width: 100%">
@@ -154,6 +162,7 @@ import { extractErrorMessage, isDialogCancel } from '../../utils/api'
 import {
   buildCourseQuery,
   getCourseDeleteErrorMessage,
+  getCourseSaveErrorMessage,
   sanitizeCourseMajor,
   validateCourseMajor,
 } from './helpers'
@@ -176,6 +185,7 @@ const filters = reactive({
 
 const form = reactive({
   name: '',
+  weeklyHours: '',
   courseType: 'PUBLIC' as CourseType,
   majorId: '',
   sourceType: 'MANUAL' as CourseSourceType,
@@ -184,6 +194,18 @@ const form = reactive({
 
 const rules: FormRules<typeof form> = {
   name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
+  weeklyHours: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!value || /^(?:\d+)(?:\.\d{1,2})?$/.test(value)) {
+          callback()
+          return
+        }
+        callback(new Error('请输入正确的周课时，最多保留两位小数'))
+      },
+      trigger: 'blur',
+    },
+  ],
   courseType: [{ required: true, message: '请选择课程类型', trigger: 'change' }],
   sourceType: [{ required: true, message: '请选择来源类型', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
@@ -212,6 +234,8 @@ const formatDateTime = (value: string) =>
     hour: '2-digit',
     minute: '2-digit',
   })
+
+const formatWeeklyHours = (value?: string | null) => value || '-'
 
 watch(
   () => form.courseType,
@@ -249,6 +273,7 @@ const loadData = async () => {
 
 const resetForm = () => {
   form.name = ''
+  form.weeklyHours = ''
   form.courseType = 'PUBLIC'
   form.majorId = ''
   form.sourceType = 'MANUAL'
@@ -267,6 +292,7 @@ const openEditDialog = (course: Course) => {
   dialogMode.value = 'edit'
   editingId.value = course.id
   form.name = course.name
+  form.weeklyHours = course.weeklyHours || ''
   form.courseType = course.courseType
   form.majorId = course.majorId || ''
   form.sourceType = course.sourceType
@@ -285,6 +311,7 @@ const handleSubmit = async () => {
   try {
     const payload = normalizeCoursePayload({
       name: form.name,
+      weeklyHours: form.weeklyHours.trim() || null,
       courseType: form.courseType,
       majorId: form.majorId || null,
       sourceType: form.sourceType,
@@ -302,7 +329,7 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     await loadCourses()
   } catch (error) {
-    ElMessage.error(extractErrorMessage(error, '课程保存失败'))
+    ElMessage.error(getCourseSaveErrorMessage(error))
   } finally {
     submitting.value = false
   }
@@ -312,6 +339,9 @@ const handleDelete = async (course: Course) => {
   try {
     await ElMessageBox.confirm(`确定删除课程“${course.name}”吗？`, '删除确认', {
       type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      distinguishCancelAndClose: true,
     })
     const response = await deleteCourseRequest(course.id)
     ElMessage.success(response.message || '课程删除成功')
@@ -350,6 +380,32 @@ onMounted(loadData)
 .header-actions {
   display: flex;
   gap: 12px;
+}
+
+.filter-card,
+.table-card {
+  border-radius: 12px;
+}
+
+.teaching-table {
+  --el-table-row-hover-bg-color: rgba(0, 212, 255, 0.08);
+}
+
+.action-button {
+  min-width: 64px;
+}
+
+.action-button-edit {
+  border-color: rgba(0, 212, 255, 0.35);
+  background: rgba(0, 212, 255, 0.14);
+  color: #7fe7ff;
+}
+
+.action-button-edit:hover,
+.action-button-edit:focus-visible {
+  border-color: rgba(0, 212, 255, 0.7);
+  background: rgba(0, 212, 255, 0.22);
+  color: #b7f3ff;
 }
 
 @media (max-width: 900px) {

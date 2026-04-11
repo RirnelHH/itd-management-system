@@ -32,6 +32,10 @@
   /* 阴影 */
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --table-row-alt: rgba(255, 255, 255, 0.02);
+  --table-row-current: rgba(0, 212, 255, 0.06);
+  --input-bg: #23252c;
+  --input-bg-elevated: #2a2d35;
 }
 
 * {
@@ -63,7 +67,15 @@ body {
 }
 
 .el-input__wrapper {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--input-bg) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+.el-select .el-select__wrapper,
+.el-textarea__inner,
+.el-date-editor.el-input__wrapper {
+  background-color: var(--input-bg) !important;
   border: 1px solid var(--border) !important;
   box-shadow: none !important;
 }
@@ -72,16 +84,26 @@ body {
   color: var(--text-primary) !important;
 }
 
+.el-select__placeholder,
+.el-textarea__inner::placeholder {
+  color: var(--text-placeholder) !important;
+}
+
 .el-input__inner::placeholder {
   color: var(--text-placeholder) !important;
 }
 
 .el-input__wrapper:hover {
   border-color: var(--border-light) !important;
+  background-color: var(--input-bg-elevated) !important;
 }
 
-.el-input__wrapper.is-focus {
+.el-input__wrapper.is-focus,
+.el-select .el-select__wrapper.is-focused,
+.el-date-editor.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
   border-color: var(--accent) !important;
+  background-color: var(--input-bg-elevated) !important;
 }
 
 .el-card {
@@ -103,6 +125,32 @@ body {
   --el-table-border-color: var(--border) !important;
   --el-table-text-color: var(--text-primary) !important;
   --el-table-header-text-color: var(--text-primary) !important;
+}
+
+.el-table tr {
+  background-color: var(--bg-secondary) !important;
+}
+
+.el-table .el-table__row--striped td.el-table__cell {
+  background-color: var(--table-row-alt) !important;
+}
+
+.el-table .el-table__body tr.current-row > td.el-table__cell,
+.el-table .el-table__body tr.hover-row > td.el-table__cell,
+.el-table .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--table-row-current) !important;
+}
+
+.el-table th.el-table__cell,
+.el-table td.el-table__cell,
+.el-table--border .el-table__cell {
+  background-color: transparent !important;
+}
+
+.el-dialog,
+.el-dialog__body,
+.el-overlay-dialog {
+  color: var(--text-primary) !important;
 }
 
 .el-menu {

@@ -252,6 +252,9 @@ const handleDelete = async (plan: TeachingPlan) => {
   try {
     await ElMessageBox.confirm(`确定删除教学计划“${plan.name}”吗？`, '删除确认', {
       type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      distinguishCancelAndClose: true,
     })
     const response = await deleteTeachingPlanRequest(plan.id)
     ElMessage.success(response.message || '教学计划删除成功')

@@ -27,6 +27,8 @@ export const sanitizeCourseMajor = (courseType: CourseType, majorId: string) =>
 
 export const getCourseDeleteErrorMessage = (error: unknown) => extractErrorMessage(error, '课程删除失败')
 
+export const getCourseSaveErrorMessage = (error: unknown) => extractErrorMessage(error, '课程保存失败')
+
 export const getMajorSaveErrorMessage = (error: unknown) => extractErrorMessage(error, '专业保存失败')
 
 export const validateGraduatedAt = (status: GradeStatus, graduatedAt: string) => {

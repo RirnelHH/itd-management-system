@@ -6,6 +6,7 @@ import {
   buildTeachingPlanDetailPath,
   buildTeachingPlanQuery,
   getCourseDeleteErrorMessage,
+  getCourseSaveErrorMessage,
   getGradeStatusTagType,
   getMajorSaveErrorMessage,
   sanitizeCourseMajor,
@@ -73,6 +74,24 @@ describe('teaching page logic helpers', () => {
 
     expect(getCourseDeleteErrorMessage(error)).toBe('课程已被未毕业年级引用，不能删除，只能停用')
     expect(getCourseDeleteErrorMessage(new Error('x'))).toBe('课程删除失败')
+  })
+
+  it('extracts backend business messages for course save failures', () => {
+    const error = new AxiosError('Bad Request')
+    error.response = {
+      data: {
+        message: '公共课“大学英语”已存在，不能重复创建或保存',
+      },
+      status: 400,
+      statusText: 'Bad Request',
+      headers: {},
+      config: {
+        headers: {} as any,
+      },
+    }
+
+    expect(getCourseSaveErrorMessage(error)).toBe('公共课“大学英语”已存在，不能重复创建或保存')
+    expect(getCourseSaveErrorMessage(new Error('x'))).toBe('课程保存失败')
   })
 
   it('validates the major form for create and edit dialogs', () => {

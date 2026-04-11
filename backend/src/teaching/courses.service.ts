@@ -14,6 +14,7 @@ export class CoursesService {
     return this.prisma.course.create({
       data: {
         name: dto.name,
+        weeklyHours: this.toWeeklyHoursDecimal(dto.weeklyHours),
         courseType: dto.courseType as any,
         sourceType: (dto.sourceType as any) || 'MANUAL',
         status: (dto.status as any) || 'ACTIVE',
@@ -87,6 +88,7 @@ export class CoursesService {
       where: { id },
       data: {
         name: dto.name,
+        weeklyHours: dto.weeklyHours === undefined ? undefined : this.toWeeklyHoursDecimal(dto.weeklyHours),
         courseType: dto.courseType as any,
         sourceType: dto.sourceType as any,
         status: dto.status as any,
@@ -172,7 +174,23 @@ export class CoursesService {
 
     const existing = await this.prisma.course.findFirst({ where });
     if (existing && existing.id !== currentId) {
-      throw new BadRequestException('课程名称已存在');
+      throw new BadRequestException(
+        courseType === 'PUBLIC'
+          ? `公共课“${name}”已存在，不能重复创建或保存`
+          : `该专业下课程“${name}”已存在，不能重复创建或保存`,
+      );
     }
+  }
+
+  private toWeeklyHoursDecimal(value?: string | null) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === null || value === '') {
+      return null;
+    }
+
+    return new Prisma.Decimal(value);
   }
 }
