@@ -140,10 +140,11 @@ export interface TeachingPlanRowPayload {
 }
 
 export interface TeachingPlanExcelImportResult {
+  success: boolean
   message: string
   importedRows: number
   replacedRows: number
   educationSystem: EducationSystem
-  templateVersion: string
+  templateFileName: string
   fileName: string
 }

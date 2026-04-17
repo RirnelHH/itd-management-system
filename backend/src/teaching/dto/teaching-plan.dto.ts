@@ -44,7 +44,7 @@ export class TeachingPlanQueryDto {
 }
 
 export class TeachingPlanExcelTemplateQueryDto {
-  @ApiPropertyOptional({ description: '模板学制，仅为兼容旧参数保留，当前固定返回原始模板文件', enum: EDUCATION_SYSTEMS })
+  @ApiPropertyOptional({ description: '模板学制，按三年制/五年制原始模板返回资源文件', enum: EDUCATION_SYSTEMS })
   @IsOptional()
   @IsIn(EDUCATION_SYSTEMS)
   educationSystem?: string;

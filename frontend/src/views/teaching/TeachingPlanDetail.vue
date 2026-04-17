@@ -7,7 +7,7 @@
           <h2>{{ plan?.name || '教学计划详情' }}</h2>
         </div>
         <p class="page-desc">
-          按模板阅读方式维护教学计划明细。周课时从课程属性自动带出，表内可直接编辑。
+          按正式模板横向学期分栏维护教学计划。课程选择后自动带出周课时，不再维护任课老师和手填周课时。
         </p>
       </div>
       <div class="header-actions">
@@ -15,7 +15,6 @@
         <el-button :loading="templateDownloading" @click="handleTemplateDownload">下载原模板</el-button>
         <el-button :loading="exporting" @click="handleExport">导出 Excel</el-button>
         <el-button :loading="importing" @click="triggerImport">导入 Excel</el-button>
-        <el-button type="primary" :disabled="isEditing" @click="startCreateRow">新增计划行</el-button>
       </div>
     </div>
 
@@ -33,7 +32,7 @@
       show-icon
       :closable="false"
       title="当前计划中包含停用课程"
-      description="停用课程会继续展示；编辑历史行时，若不更换课程，可继续修改备注和排序。"
+      description="停用课程会继续展示；如需修改课程，请改选启用课程。"
     />
 
     <el-alert
@@ -58,8 +57,8 @@
             <strong>{{ plan.grade?.major?.name || '-' }}</strong>
           </div>
           <div class="summary-item">
-            <span class="summary-label">总行数</span>
-            <strong>{{ plan.rows.length }}</strong>
+            <span class="summary-label">模板学制</span>
+            <strong>{{ plan.grade?.educationSystem === 'FIVE_YEAR' ? '五年制' : '三年制' }}</strong>
           </div>
           <div class="summary-item">
             <span class="summary-label">更新时间</span>
@@ -71,145 +70,157 @@
 
     <el-card class="table-card">
       <template #header>
-        <div class="group-header">
+        <div class="table-header">
           <div>
-            <strong>教学计划明细表</strong>
-            <span class="group-count">{{ displayRows.length }} 行</span>
+            <strong>教学计划总表</strong>
+            <span class="table-meta">{{ plan?.rows.length || 0 }} 行</span>
           </div>
-          <span class="template-tip">导入会整表覆盖当前明细</span>
+          <span class="table-meta">导入会整表覆盖当前数据；导出严格按正式模板固定位置回填。</span>
         </div>
       </template>
 
-      <el-table v-if="plan" :data="displayRows" border stripe class="plan-table">
-        <el-table-column label="学期序号" width="110">
-          <template #default="{ row }">
-            <el-input-number
-              v-if="isEditingRow(row)"
-              v-model="draftForm.termNo"
-              :min="1"
-              :step="1"
-              controls-position="right"
-              style="width: 100%"
-            />
-            <span v-else>{{ row.termNo }}</span>
-          </template>
-        </el-table-column>
+      <template v-if="plan">
+        <div class="matrix-wrapper">
+          <table class="plan-matrix">
+            <thead>
+              <tr>
+                <th class="slot-column">槽位</th>
+                <th
+                  v-for="section in termSections"
+                  :key="section.key"
+                  :class="{ internship: section.termType === 'INTERNSHIP' }"
+                >
+                  <div class="term-title">{{ section.shortTitle }}</div>
+                  <div class="term-subtitle">{{ section.termType === 'INTERNSHIP' ? '实习栏位' : '校内课程栏位' }}</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="slotIndex in maxSlotCount" :key="slotIndex">
+                <th class="slot-column">第 {{ slotIndex }} 行</th>
+                <td
+                  v-for="section in termSections"
+                  :key="`${section.key}-${slotIndex}`"
+                  :class="{
+                    unused: slotIndex > section.slotCount,
+                    editing: isEditingCell(section, slotIndex),
+                  }"
+                >
+                  <template v-if="slotIndex > section.slotCount">
+                    <div class="unused-cell">该学期无此槽位</div>
+                  </template>
 
-        <el-table-column label="学期类型" width="140">
-          <template #default="{ row }">
-            <el-select v-if="isEditingRow(row)" v-model="draftForm.termType" style="width: 100%">
-              <el-option
-                v-for="option in TEACHING_PLAN_TERM_TYPE_OPTIONS"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-            <span v-else>{{ formatTermType(row.termType) }}</span>
-          </template>
-        </el-table-column>
+                  <template v-else-if="isEditingCell(section, slotIndex)">
+                    <div class="cell-editor">
+                      <div class="editor-label">{{ section.shortTitle }}</div>
+                      <el-select
+                        v-model="draftForm.courseId"
+                        filterable
+                        placeholder="请选择课程"
+                        style="width: 100%"
+                        @change="handleCourseChange"
+                      >
+                        <el-option
+                          v-for="course in selectableCourses"
+                          :key="course.id"
+                          :label="buildCourseOptionLabel(course)"
+                          :value="course.id"
+                          :disabled="isDisabledCourse(course)"
+                        />
+                      </el-select>
 
-        <el-table-column label="课程" min-width="260">
-          <template #default="{ row }">
-            <template v-if="isEditingRow(row)">
-              <el-select
-                v-model="draftForm.courseId"
-                filterable
-                placeholder="请选择课程"
-                style="width: 100%"
-                @change="handleCourseChange"
-              >
-                <el-option
-                  v-for="course in selectableCourses"
-                  :key="course.id"
-                  :label="buildCourseOptionLabel(course)"
-                  :value="course.id"
-                  :disabled="isDisabledCourse(course)"
-                />
-              </el-select>
-              <div v-if="disabledCourseSelected" class="field-tip warning-text">
-                当前选中课程已停用，不能作为新选项提交。
-              </div>
-            </template>
-            <div v-else class="course-cell">
-              <span>{{ row.courseName }}</span>
-              <el-tag v-if="row.courseId === null" size="small" type="info">课程已删除</el-tag>
-              <el-tag v-else-if="isDisabledCourse(row.course)" size="small" type="warning">课程已停用</el-tag>
-            </div>
-          </template>
-        </el-table-column>
+                      <div class="editor-field">
+                        <span class="field-label">周课时</span>
+                        <strong>{{ editingWeeklyHoursText }}</strong>
+                      </div>
 
-        <el-table-column label="课程类型" width="110">
-          <template #default="{ row }">
-            {{ getCourseTypeLabel(isEditingRow(row) ? selectedCourse?.courseType : row.course?.courseType) }}
-          </template>
-        </el-table-column>
+                      <div class="editor-field">
+                        <span class="field-label">课程类型</span>
+                        <strong>{{ getCourseTypeLabel(selectedCourse?.courseType) }}</strong>
+                      </div>
 
-        <el-table-column label="归属专业" min-width="140">
-          <template #default="{ row }">
-            {{ isEditingRow(row) ? selectedCourse?.major?.name || (selectedCourse?.courseType === 'PUBLIC' ? '公共课' : '-') : row.course?.major?.name || (row.course?.courseType === 'PUBLIC' ? '公共课' : plan?.grade?.major?.name || '-') }}
-          </template>
-        </el-table-column>
+                      <div class="editor-field">
+                        <span class="field-label">归属专业</span>
+                        <strong>{{ resolveSelectedCourseMajorName() }}</strong>
+                      </div>
 
-        <el-table-column label="周课时" width="120">
-          <template #default="{ row }">
-            <span>{{ isEditingRow(row) ? editingWeeklyHoursText : row.weeklyHoursRaw || '-' }}</span>
-          </template>
-        </el-table-column>
+                      <el-input
+                        v-model="draftForm.remark"
+                        type="textarea"
+                        :rows="3"
+                        maxlength="255"
+                        show-word-limit
+                        placeholder="请输入备注"
+                      />
 
-        <el-table-column label="备注" min-width="180">
-          <template #default="{ row }">
-            <el-input
-              v-if="isEditingRow(row)"
-              v-model="draftForm.remark"
-              type="textarea"
-              :rows="2"
-              maxlength="255"
-              show-word-limit
-              placeholder="请输入备注"
-            />
-            <span v-else>{{ row.remark || '-' }}</span>
-          </template>
-        </el-table-column>
+                      <div v-if="disabledCourseSelected" class="warning-text">当前选中课程已停用，不能提交。</div>
 
-        <el-table-column label="排序" width="100">
-          <template #default="{ row }">
-            <el-input-number
-              v-if="isEditingRow(row)"
-              v-model="draftForm.sortOrder"
-              :min="0"
-              :step="1"
-              controls-position="right"
-              style="width: 100%"
-            />
-            <span v-else>{{ row.sortOrder }}</span>
-          </template>
-        </el-table-column>
+                      <div class="cell-actions">
+                        <el-button size="small" type="primary" :loading="submitting" @click="handleSave">保存</el-button>
+                        <el-button size="small" @click="cancelEditing">取消</el-button>
+                      </div>
+                    </div>
+                  </template>
 
-        <el-table-column label="操作" width="220" fixed="right">
-          <template #default="{ row }">
-            <template v-if="isEditingRow(row)">
-              <el-button size="small" type="primary" :loading="submitting" @click="handleSave(row)">
-                保存
-              </el-button>
-              <el-button size="small" @click="cancelEditing">取消</el-button>
-            </template>
-            <template v-else>
-              <el-button size="small" type="primary" link :disabled="isEditing" @click="startEditRow(row)">
-                编辑
-              </el-button>
-              <el-button size="small" type="danger" link :disabled="isEditing" @click="handleDelete(row)">
-                删除
-              </el-button>
-            </template>
-          </template>
-        </el-table-column>
-      </el-table>
+                  <template v-else>
+                    <div v-if="getCellRow(section, slotIndex)" class="course-card">
+                      <div class="course-card-header">
+                        <strong>{{ getCellRow(section, slotIndex)?.courseName }}</strong>
+                        <el-tag
+                          v-if="getCellRow(section, slotIndex)?.courseId === null"
+                          size="small"
+                          type="info"
+                        >
+                          课程已删除
+                        </el-tag>
+                        <el-tag
+                          v-else-if="isDisabledCourse(getCellRow(section, slotIndex)?.course)"
+                          size="small"
+                          type="warning"
+                        >
+                          课程已停用
+                        </el-tag>
+                      </div>
 
-      <el-empty
-        v-else-if="!loading"
-        description="教学计划详情不存在或尚未加载完成。"
-      />
+                      <div class="course-meta">
+                        <span>{{ getCourseTypeLabel(getCellRow(section, slotIndex)?.course?.courseType) }}</span>
+                        <span>{{ resolveMajorName(getCellRow(section, slotIndex)!) }}</span>
+                        <span>周课时 {{ resolveRowWeeklyHours(getCellRow(section, slotIndex)!) }}</span>
+                      </div>
+
+                      <p class="course-remark">{{ getCellRow(section, slotIndex)?.remark || '无备注' }}</p>
+
+                      <div class="cell-actions">
+                        <el-button size="small" type="primary" link :disabled="isEditing" @click="startEditCell(section, slotIndex)">
+                          编辑
+                        </el-button>
+                        <el-button
+                          size="small"
+                          type="danger"
+                          link
+                          :disabled="isEditing"
+                          @click="handleDelete(getCellRow(section, slotIndex)!)"
+                        >
+                          删除
+                        </el-button>
+                      </div>
+                    </div>
+
+                    <div v-else class="empty-cell">
+                      <span>空</span>
+                      <el-button size="small" type="primary" plain :disabled="isEditing" @click="startCreateCell(section, slotIndex)">
+                        填写
+                      </el-button>
+                    </div>
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+
+      <el-empty v-else-if="!loading" description="教学计划详情不存在或尚未加载完成。" />
     </el-card>
   </div>
 </template>
@@ -228,17 +239,21 @@ import {
   importTeachingPlanExcelRequest,
   updateTeachingPlanRowRequest,
 } from '../../api/teaching'
-import { TEACHING_PLAN_TERM_TYPE_OPTIONS, getCourseTypeLabel, getTeachingPlanTermTypeLabel } from '../../constants/teaching'
+import { getCourseTypeLabel } from '../../constants/teaching'
 import type { Course, TeachingPlanDetail, TeachingPlanRow, TeachingPlanTermType } from '../../types/teaching'
 import { extractErrorMessage, isDialogCancel } from '../../utils/api'
 import {
   buildTeachingPlanSelectableCourses,
+  buildTeachingPlanTermSchema,
   createTeachingPlanRowPayload,
   isDisabledCourse,
   validateTeachingPlanRowForm,
 } from './helpers'
 
-type EditableTeachingPlanRow = TeachingPlanRow & { __draft?: boolean }
+type TermSection = ReturnType<typeof buildTeachingPlanTermSchema>[number] & {
+  shortTitle: string
+  rows: TeachingPlanRow[]
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -253,9 +268,10 @@ const plan = ref<TeachingPlanDetail | null>(null)
 const courses = ref<Course[]>([])
 const editingRowId = ref('')
 const originalCourseId = ref<string | null>(null)
-const isCreating = ref(false)
 const fileInputRef = ref<HTMLInputElement>()
 const importStatus = ref<null | { type: 'success' | 'error'; title: string; description: string }>(null)
+const activeCellKey = ref('')
+const isCreating = ref(false)
 
 const draftForm = reactive<{
   termNo: number | null
@@ -285,41 +301,32 @@ const isEditing = computed(() => Boolean(editingRowId.value))
 
 const editingWeeklyHoursText = computed(() => selectedCourse.value?.weeklyHours || '-')
 
-const draftRow = computed<EditableTeachingPlanRow | null>(() => {
-  if (!editingRowId.value) {
-    return null
-  }
+const termSections = computed<TermSection[]>(() => {
+  const schema = buildTeachingPlanTermSchema(plan.value?.grade?.educationSystem)
+  const rowGroups = new Map<string, TeachingPlanRow[]>()
 
-  return {
-    id: editingRowId.value,
-    teachingPlanId: planId.value,
-    termNo: draftForm.termNo || 1,
-    termType: (draftForm.termType || 'SCHOOL') as TeachingPlanTermType,
-    courseId: selectedCourse.value?.id || draftForm.courseId || null,
-    courseName: selectedCourse.value?.name || '',
-    weeklyHoursRaw: selectedCourse.value?.weeklyHours || '',
-    weeklyHoursValue: selectedCourse.value?.weeklyHours || null,
-    remark: draftForm.remark || null,
-    sortOrder: draftForm.sortOrder,
-    createdAt: '',
-    updatedAt: '',
-    course: selectedCourse.value,
-    __draft: true,
-  }
+  ;(plan.value?.rows || []).forEach((row) => {
+    const key = `${row.termType}-${row.termNo}`
+    const current = rowGroups.get(key) || []
+    current.push(row)
+    rowGroups.set(key, current)
+  })
+
+  return schema.map((section) => ({
+    ...section,
+    shortTitle: `第${section.termNo}学期`,
+    rows: (rowGroups.get(section.key) || []).slice().sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder
+      }
+      return left.courseName.localeCompare(right.courseName, 'zh-CN')
+    }),
+  }))
 })
 
-const displayRows = computed<EditableTeachingPlanRow[]>(() => {
-  const currentRows = (plan.value?.rows || []).slice()
-  if (!draftRow.value) {
-    return currentRows
-  }
-
-  if (isCreating.value) {
-    return [draftRow.value, ...currentRows]
-  }
-
-  return currentRows.map((row) => (row.id === editingRowId.value ? draftRow.value as EditableTeachingPlanRow : row))
-})
+const maxSlotCount = computed(() =>
+  Math.max(...termSections.value.map((section) => section.slotCount), 1),
+)
 
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString('zh-CN', {
@@ -330,7 +337,12 @@ const formatDateTime = (value: string) =>
     minute: '2-digit',
   })
 
-const formatTermType = (value: TeachingPlanTermType) => getTeachingPlanTermTypeLabel(value)
+const getCellRow = (section: TermSection, slotIndex: number) => section.rows[slotIndex - 1] || null
+
+const buildCellKey = (section: { termNo: number; termType: TeachingPlanTermType }, slotIndex: number) =>
+  `${section.termType}-${section.termNo}-${slotIndex}`
+
+const isEditingCell = (section: TermSection, slotIndex: number) => activeCellKey.value === buildCellKey(section, slotIndex)
 
 const buildCourseOptionLabel = (course: Course) => {
   const majorName = course.major?.name ? ` / ${course.major.name}` : ''
@@ -338,6 +350,14 @@ const buildCourseOptionLabel = (course: Course) => {
   const weeklyHours = course.weeklyHours ? ` / ${course.weeklyHours}课时` : ' / 未设周课时'
   return `${course.name}${majorName}${weeklyHours}${status}`
 }
+
+const resolveMajorName = (row: TeachingPlanRow) =>
+  row.course?.major?.name || (row.course?.courseType === 'PUBLIC' ? '公共课' : plan.value?.grade?.major?.name || '-')
+
+const resolveSelectedCourseMajorName = () =>
+  selectedCourse.value?.major?.name || (selectedCourse.value?.courseType === 'PUBLIC' ? '公共课' : plan.value?.grade?.major?.name || '-')
+
+const resolveRowWeeklyHours = (row: TeachingPlanRow) => row.course?.weeklyHours || row.weeklyHoursRaw || '-'
 
 const goBack = () => {
   router.push('/teaching/plans')
@@ -373,10 +393,7 @@ const loadData = async () => {
 
   loading.value = true
   try {
-    const [detail, courseList] = await Promise.all([
-      fetchTeachingPlanDetailRequest(planId.value),
-      fetchCoursesRequest(),
-    ])
+    const [detail, courseList] = await Promise.all([fetchTeachingPlanDetailRequest(planId.value), fetchCoursesRequest()])
     plan.value = detail
     courses.value = courseList
   } catch (error) {
@@ -389,6 +406,7 @@ const loadData = async () => {
 const resetDraft = () => {
   editingRowId.value = ''
   originalCourseId.value = null
+  activeCellKey.value = ''
   isCreating.value = false
   draftForm.termNo = 1
   draftForm.termType = 'SCHOOL'
@@ -397,36 +415,44 @@ const resetDraft = () => {
   draftForm.sortOrder = 0
 }
 
-const startCreateRow = () => {
+const startCreateCell = (section: TermSection, slotIndex: number) => {
   if (isEditing.value) {
     return
   }
 
   resetDraft()
   editingRowId.value = '__new__'
+  activeCellKey.value = buildCellKey(section, slotIndex)
   isCreating.value = true
+  draftForm.termNo = section.termNo
+  draftForm.termType = section.termType
+  draftForm.sortOrder = slotIndex - 1
 }
 
-const startEditRow = (row: TeachingPlanRow) => {
+const startEditCell = (section: TermSection, slotIndex: number) => {
   if (isEditing.value) {
+    return
+  }
+
+  const row = getCellRow(section, slotIndex)
+  if (!row) {
     return
   }
 
   editingRowId.value = row.id
   originalCourseId.value = row.courseId
+  activeCellKey.value = buildCellKey(section, slotIndex)
   draftForm.termNo = row.termNo
   draftForm.termType = row.termType
   draftForm.courseId = row.courseId || ''
   draftForm.remark = row.remark || ''
-  draftForm.sortOrder = row.sortOrder
+  draftForm.sortOrder = slotIndex - 1
   isCreating.value = false
 }
 
 const cancelEditing = () => {
   resetDraft()
 }
-
-const isEditingRow = (row: EditableTeachingPlanRow) => row.id === editingRowId.value
 
 const handleCourseChange = () => {
   if (disabledCourseSelected.value) {
@@ -475,9 +501,10 @@ const handleFileChange = async (event: Event) => {
     importStatus.value = {
       type: 'success',
       title: '导入成功',
-      description: `${result.message}，文件：${result.fileName}`,
+      description: `${result.message}；源文件：${result.fileName}；模板：${result.templateFileName}`,
     }
     ElMessage.success(result.message || `成功导入 ${result.importedRows} 行`)
+    resetDraft()
     await loadData()
   } catch (error) {
     const message = extractErrorMessage(error, '教学计划 Excel 导入失败')
@@ -517,7 +544,8 @@ const handleTemplateDownload = async () => {
   try {
     const response = await downloadTeachingPlanTemplateRequest(plan.value?.grade?.educationSystem || 'FIVE_YEAR')
     const fileName =
-      resolveDownloadFileName(response.headers['content-disposition']) || '实施性教学计划模板.xlsx'
+      resolveDownloadFileName(response.headers['content-disposition']) ||
+      (plan.value?.grade?.educationSystem === 'THREE_YEAR' ? '课程实施计划三年制.xlsx' : '课程实施计划五年制.xlsx')
     downloadBlobFile(response.data, fileName)
     ElMessage.success('教学计划模板下载成功')
   } catch (error) {
@@ -527,7 +555,7 @@ const handleTemplateDownload = async () => {
   }
 }
 
-const handleSave = async (_row: EditableTeachingPlanRow) => {
+const handleSave = async () => {
   if (!planId.value || !draftForm.termNo || !draftForm.termType) {
     return
   }
@@ -650,43 +678,125 @@ onMounted(loadData)
   gap: 6px;
 }
 
-.summary-label {
+.summary-label,
+.table-meta,
+.term-subtitle,
+.field-label {
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.group-header {
+.table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
 }
 
-.group-count,
-.template-tip {
+.matrix-wrapper {
+  overflow-x: auto;
+}
+
+.plan-matrix {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.plan-matrix th,
+.plan-matrix td {
+  border: 1px solid var(--el-border-color-light);
+  vertical-align: top;
+  padding: 12px;
+  background: #fff;
+}
+
+.plan-matrix thead th {
+  background: #f6f8fb;
+  text-align: left;
+  min-width: 220px;
+}
+
+.plan-matrix .slot-column {
+  min-width: 88px;
+  width: 88px;
+  background: #fbfbfc;
+}
+
+.term-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.unused-cell {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: repeating-linear-gradient(135deg, #fafbfd, #fafbfd 8px, #f5f7fa 8px, #f5f7fa 16px);
+}
+
+.empty-cell,
+.course-card,
+.cell-editor {
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-cell {
+  justify-content: center;
+  align-items: flex-start;
+  color: var(--text-muted);
+}
+
+.course-card-header,
+.course-meta,
+.cell-actions,
+.editor-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.course-card-header {
+  align-items: center;
+}
+
+.course-meta {
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.plan-table :deep(.el-textarea__inner) {
-  min-height: 58px !important;
+.course-remark {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
 }
 
-.course-cell {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.editor-label {
+  font-weight: 600;
 }
 
-.field-tip {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.5;
+.editor-field {
+  justify-content: space-between;
 }
 
 .warning-text {
   color: var(--el-color-warning);
+  font-size: 12px;
+}
+
+.editing {
+  background: #fffdf3;
+}
+
+.unused {
+  padding: 0 !important;
 }
 
 .hidden-file-input {
@@ -694,8 +804,10 @@ onMounted(loadData)
 }
 
 @media (max-width: 900px) {
-  .page-header {
+  .page-header,
+  .table-header {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .header-actions {
@@ -704,11 +816,6 @@ onMounted(loadData)
 
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .group-header {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }
 

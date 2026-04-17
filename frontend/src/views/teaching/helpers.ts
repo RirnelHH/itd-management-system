@@ -112,6 +112,34 @@ export const buildTeachingPlanRowGroups = (rows: TeachingPlanRow[]) => {
   })
 }
 
+export const buildTeachingPlanTermSchema = (educationSystem?: EducationSystem | null) => {
+  if (educationSystem === 'FIVE_YEAR') {
+    return Array.from({ length: 10 }, (_, index) => {
+      const termNo = index + 1
+      const termType: TeachingPlanTermType = termNo <= 8 ? 'SCHOOL' : 'INTERNSHIP'
+      return {
+        key: `${termType}-${termNo}`,
+        termNo,
+        termType,
+        title: formatTeachingPlanTermLabel(termNo, termType),
+        slotCount: termType === 'SCHOOL' ? 9 : 1,
+      }
+    })
+  }
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const termNo = index + 1
+    const termType: TeachingPlanTermType = termNo <= 4 ? 'SCHOOL' : 'INTERNSHIP'
+    return {
+      key: `${termType}-${termNo}`,
+      termNo,
+      termType,
+      title: formatTeachingPlanTermLabel(termNo, termType),
+      slotCount: termType === 'SCHOOL' ? 9 : 1,
+    }
+  })
+}
+
 export const isDisabledCourse = (course?: Course | null) => course?.status === 'DISABLED'
 
 export const buildTeachingPlanSelectableCourses = (courses: Course[], majorId?: string | null) =>

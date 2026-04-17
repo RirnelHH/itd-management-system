@@ -2,12 +2,12 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { BadRequestException } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import * as path from 'node:path';
 import { TeachingPlanExcelService } from '../src/teaching/teaching-plan-excel.service';
 import { createMockFn } from './helpers/prisma.mock';
 
-function createPrismaMock() {
+function createPrismaMock(educationSystem: 'THREE_YEAR' | 'FIVE_YEAR' = 'FIVE_YEAR') {
   const prisma = {
     teachingPlan: {
       findUnique: createMockFn(async () => ({
@@ -18,7 +18,7 @@ function createPrismaMock() {
           id: 'grade-1',
           name: '2024级',
           majorId: 'major-1',
-          educationSystem: 'FIVE_YEAR',
+          educationSystem,
           major: {
             id: 'major-1',
             name: '软件技术',
@@ -80,47 +80,72 @@ function createPrismaMock() {
   return prisma;
 }
 
-async function createWorkbookBuffer(rows: Array<Array<string | number>>) {
+async function createWorkbookBuffer(
+  educationSystem: 'THREE_YEAR' | 'FIVE_YEAR',
+  rows: Array<{
+    termNo: number;
+    courseName: string;
+    weeklyHours: string;
+    remark?: string;
+    slot?: number;
+  }>,
+) {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('教学计划');
+  await workbook.xlsx.readFile(path.resolve(process.cwd(), 'resources', `课程实施计划${educationSystem === 'THREE_YEAR' ? '三年制' : '五年制'}.xlsx`));
+  const sheet = workbook.worksheets[0];
 
-  sheet.getCell('A1').value = '教学计划 Excel 导入模板';
-  sheet.getCell('A2').value = '模板版本：v1';
-  sheet.getCell('A3').value = '说明';
-  sheet.getCell('A4').value = '学制：五年制';
-  sheet.getCell('A5').value = '规则说明';
+  const schoolTermStartColumns = educationSystem === 'THREE_YEAR' ? [2, 6, 10, 14] : [2, 6, 10, 14, 18, 22, 26, 30];
+  const internshipTermStartColumns = educationSystem === 'THREE_YEAR' ? [18, 20] : [34, 36];
 
-  const headers = ['学期序号', '学期类型', '课程ID', '课程名称', '课程类型', '归属专业', '周学时', '任课教师', '备注', '排序'];
-  headers.forEach((header, index) => {
-    sheet.getRow(7).getCell(index + 1).value = header;
+  schoolTermStartColumns.forEach((startColumn) => {
+    for (let rowNo = 6; rowNo <= 14; rowNo += 1) {
+      sheet.getCell(rowNo, startColumn).value = null;
+      sheet.getCell(rowNo, startColumn + 1).value = null;
+      sheet.getCell(rowNo, startColumn + 3).value = null;
+    }
+    sheet.getCell(17, startColumn + 1).value = null;
   });
 
-  rows.forEach((values, rowIndex) => {
-    values.forEach((value, valueIndex) => {
-      sheet.getRow(8 + rowIndex).getCell(valueIndex + 1).value = value;
-    });
+  internshipTermStartColumns.forEach((startColumn) => {
+    sheet.getCell(6, startColumn).value = null;
+    sheet.getCell(6, startColumn + 1).value = null;
+    sheet.getCell(17, startColumn + 1).value = null;
+  });
+
+  rows.forEach((row) => {
+    const isSchoolTerm = educationSystem === 'THREE_YEAR' ? row.termNo <= 4 : row.termNo <= 8;
+    if (isSchoolTerm) {
+      const courseColumn = schoolTermStartColumns[row.termNo - 1];
+      const weeklyHoursColumn = courseColumn + 1;
+      const remarkColumn = courseColumn + 3;
+      const rowNo = 6 + ((row.slot ?? 1) - 1);
+      sheet.getCell(rowNo, courseColumn).value = row.courseName;
+      sheet.getCell(rowNo, weeklyHoursColumn).value = row.weeklyHours;
+      sheet.getCell(rowNo, remarkColumn).value = row.remark || '';
+      return;
+    }
+
+    const courseColumn = internshipTermStartColumns[row.termNo - (educationSystem === 'THREE_YEAR' ? 5 : 9)];
+    sheet.getCell(6, courseColumn).value = row.courseName;
+    sheet.getCell(6, courseColumn + 1).value = row.weeklyHours;
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
 
-async function ensureTemplateFile() {
-  const templatePath = path.resolve(process.cwd(), 'resources', '实施性教学计划模板.xlsx');
-  await mkdir(path.dirname(templatePath), { recursive: true });
-  const buffer = await createWorkbookBuffer([]);
-  await writeFile(templatePath, buffer);
-  return async () => {
-    await rm(templatePath, { force: true });
-  };
+async function ensureTemplateFiles() {
+  await access(path.resolve(process.cwd(), 'resources', '课程实施计划三年制.xlsx'));
+  await access(path.resolve(process.cwd(), 'resources', '课程实施计划五年制.xlsx'));
+  return async () => undefined;
 }
 
-test('TeachingPlanExcelService: 五年制非法实习学期会被阻断', async () => {
-  const cleanup = await ensureTemplateFile();
-  const prisma = createPrismaMock();
+test('TeachingPlanExcelService: 模板周节数与课程库不一致会被阻断', async () => {
+  const cleanup = await ensureTemplateFiles();
+  const prisma = createPrismaMock('FIVE_YEAR');
   const service = new TeachingPlanExcelService(prisma as any);
-  const buffer = await createWorkbookBuffer([
-    [8, '企业实习', 'course-major', '岗位实习', '专业课', '软件技术', '30节×18周', '', '', 1],
+  const buffer = await createWorkbookBuffer('FIVE_YEAR', [
+    { termNo: 1, courseName: '思想道德与法治', weeklyHours: '6' },
   ]);
 
   await assert.rejects(
@@ -130,20 +155,43 @@ test('TeachingPlanExcelService: 五年制非法实习学期会被阻断', async 
     }),
     (error: any) => {
       assert.ok(error instanceof BadRequestException);
-      assert.match(error.message, /五年制企业实习学期必须在 9-10 学期/);
+      assert.match(error.message, /模板周节数为 6/);
       return true;
     },
   );
   await cleanup();
 });
 
-test('TeachingPlanExcelService: 成功导入会替换原计划行', async () => {
-  const cleanup = await ensureTemplateFile();
-  const prisma = createPrismaMock();
+test('TeachingPlanExcelService: 模板学制不匹配会明确报错', async () => {
+  const cleanup = await ensureTemplateFiles();
+  const prisma = createPrismaMock('THREE_YEAR');
   const service = new TeachingPlanExcelService(prisma as any);
-  const buffer = await createWorkbookBuffer([
-    [1, '在校', 'course-public', '思想道德与法治', '公共课', '', '4', '李老师', '', 1],
-    [9, '企业实习', 'course-major', '岗位实习', '专业课', '软件技术', '30节×18周', '', '集中实习', 2],
+  const buffer = await createWorkbookBuffer('FIVE_YEAR', [
+    { termNo: 1, courseName: '思想道德与法治', weeklyHours: '4' },
+  ]);
+
+  await assert.rejects(
+    service.importPlanRows('plan-1', {
+      buffer,
+      originalname: 'wrong-template.xlsx',
+    }),
+    (error: any) => {
+      assert.ok(error instanceof BadRequestException);
+      assert.match(error.message, /模板不匹配/);
+      assert.match(error.message, /课程实施计划三年制\.xlsx/);
+      return true;
+    },
+  );
+  await cleanup();
+});
+
+test('TeachingPlanExcelService: 成功导入会替换原计划行并返回模板信息', async () => {
+  const cleanup = await ensureTemplateFiles();
+  const prisma = createPrismaMock('FIVE_YEAR');
+  const service = new TeachingPlanExcelService(prisma as any);
+  const buffer = await createWorkbookBuffer('FIVE_YEAR', [
+    { termNo: 1, courseName: '思想道德与法治', weeklyHours: '4', slot: 1 },
+    { termNo: 9, courseName: '岗位实习', weeklyHours: '30节×18周' },
   ]);
 
   const result = await service.importPlanRows('plan-1', {
@@ -151,8 +199,10 @@ test('TeachingPlanExcelService: 成功导入会替换原计划行', async () => 
     originalname: 'plan-import.xlsx',
   });
 
+  assert.equal(result.success, true);
   assert.equal(result.importedRows, 2);
   assert.equal(result.replacedRows, 1);
+  assert.equal(result.templateFileName, '课程实施计划五年制.xlsx');
   assert.equal(prisma.$transaction.calls.length, 1);
   assert.equal(prisma.teachingPlanRow.deleteMany.calls.length, 1);
   assert.equal(prisma.teachingPlanRow.createMany.calls.length, 1);
@@ -161,14 +211,14 @@ test('TeachingPlanExcelService: 成功导入会替换原计划行', async () => 
   await cleanup();
 });
 
-test('TeachingPlanExcelService: 导出会生成 xlsx 缓冲和文件名', async () => {
-  const cleanup = await ensureTemplateFile();
-  const prisma = createPrismaMock();
+test('TeachingPlanExcelService: 导出会使用对应学制模板文件名', async () => {
+  const cleanup = await ensureTemplateFiles();
+  const prisma = createPrismaMock('THREE_YEAR');
   const service = new TeachingPlanExcelService(prisma as any);
 
   const result = await service.buildExportFile('plan-1');
 
   assert.ok(Buffer.from(result.buffer).length > 0);
-  assert.match(result.fileName, /教学计划导出\.xlsx$/);
+  assert.match(result.fileName, /课程实施计划三年制\.xlsx$/);
   await cleanup();
 });

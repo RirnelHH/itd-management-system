@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } 
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { TeachingPlanExcelService } from './teaching-plan-excel.service';
 import { TeachingPlansService } from './teaching-plans.service';
 import {
@@ -28,12 +29,13 @@ export class TeachingPlansController {
   @ApiOperation({ summary: '下载教学计划 Excel 模板' })
   @ApiQuery({ name: 'educationSystem', required: false, enum: ['THREE_YEAR', 'FIVE_YEAR'] })
   async downloadTemplate(@Query() query: TeachingPlanExcelTemplateQueryDto, @Res() res: Response) {
-    void query;
-    const buffer = await this.teachingPlanExcelService.buildTemplateBuffer();
+    const educationSystem = (query.educationSystem || 'FIVE_YEAR') as 'THREE_YEAR' | 'FIVE_YEAR';
+    const buffer = await this.teachingPlanExcelService.buildTemplateBuffer(educationSystem);
+    const fileName = educationSystem === 'THREE_YEAR' ? '课程实施计划三年制.xlsx' : '课程实施计划五年制.xlsx';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${encodeURIComponent('实施性教学计划模板.xlsx')}"`,
+      `attachment; filename="${encodeURIComponent(fileName)}"`,
     );
     res.send(Buffer.from(buffer));
   }
@@ -60,7 +62,11 @@ export class TeachingPlansController {
   }
 
   @Post(':id/import')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
