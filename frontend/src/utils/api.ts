@@ -18,4 +18,22 @@ export const extractErrorMessage = (error: unknown, fallback = '请求失败') =
   return fallback
 }
 
+export const extractErrorMessages = (error: unknown) => {
+  if (!axios.isAxiosError(error)) {
+    return []
+  }
+
+  const message = error.response?.data?.message
+
+  if (Array.isArray(message)) {
+    return message.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+  }
+
+  if (typeof message === 'string' && message.trim()) {
+    return [message]
+  }
+
+  return []
+}
+
 export const isDialogCancel = (error: unknown) => error === 'cancel' || error === 'close'

@@ -144,6 +144,12 @@ export interface TeachingPlanExcelImportResult {
   message: string
   importedRows: number
   replacedRows: number
+  termSummaries: Array<{
+    termNo: number
+    termType: TeachingPlanTermType
+    title: string
+    rowCount: number
+  }>
   educationSystem: EducationSystem
   templateFileName: string
   fileName: string

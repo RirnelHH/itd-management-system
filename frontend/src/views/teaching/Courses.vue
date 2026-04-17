@@ -37,6 +37,21 @@
       </el-form>
     </el-card>
 
+    <div class="summary-strip">
+      <el-card class="summary-card">
+        <span class="summary-label">课程总数</span>
+        <strong>{{ courses.length }}</strong>
+      </el-card>
+      <el-card class="summary-card">
+        <span class="summary-label">启用课程</span>
+        <strong>{{ activeCourseCount }}</strong>
+      </el-card>
+      <el-card class="summary-card">
+        <span class="summary-label">计划引用总量</span>
+        <strong>{{ referencedPlanCount }}</strong>
+      </el-card>
+    </div>
+
     <el-card class="table-card">
       <el-table v-loading="loading" :data="courses" class="teaching-table">
         <el-table-column prop="name" label="课程名称" min-width="220" />
@@ -237,6 +252,12 @@ const formatDateTime = (value: string) =>
 
 const formatWeeklyHours = (value?: string | null) => value || '-'
 
+const activeCourseCount = computed(() => courses.value.filter((course) => course.status === 'ACTIVE').length)
+
+const referencedPlanCount = computed(() =>
+  courses.value.reduce((total, course) => total + (course._count?.teachingPlanRows ?? 0), 0),
+)
+
 watch(
   () => form.courseType,
   (courseType) => {
@@ -383,8 +404,27 @@ onMounted(loadData)
 }
 
 .filter-card,
-.table-card {
+.table-card,
+.summary-card {
   border-radius: 12px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+}
+
+.summary-label {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .teaching-table {
@@ -416,6 +456,10 @@ onMounted(loadData)
   .header-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .summary-strip {
+    grid-template-columns: 1fr;
   }
 }
 </style>

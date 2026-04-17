@@ -32,8 +32,23 @@
       </el-form>
     </el-card>
 
+    <div class="summary-strip">
+      <el-card class="summary-card">
+        <span class="summary-label">教学计划总数</span>
+        <strong>{{ plans.length }}</strong>
+      </el-card>
+      <el-card class="summary-card">
+        <span class="summary-label">计划行总量</span>
+        <strong>{{ totalPlanRows }}</strong>
+      </el-card>
+      <el-card class="summary-card">
+        <span class="summary-label">可选年级</span>
+        <strong>{{ grades.length }}</strong>
+      </el-card>
+    </div>
+
     <el-card class="table-card">
-      <el-table v-loading="loading" :data="plans" stripe>
+      <el-table v-loading="loading" :data="plans" stripe class="teaching-table">
         <el-table-column prop="name" label="教学计划名称" min-width="260" />
         <el-table-column label="所属年级" min-width="180">
           <template #default="{ row }">
@@ -57,8 +72,8 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openEditDialog(row)">编辑</el-button>
-            <el-button size="small" type="primary" link @click="goToDetail(row.id)">详情</el-button>
+            <el-button size="small" class="action-button action-button-edit" @click="openEditDialog(row)">编辑</el-button>
+            <el-button size="small" class="action-button action-button-detail" @click="goToDetail(row.id)">详情</el-button>
             <el-button size="small" type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -95,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -177,6 +192,8 @@ const formatDateTime = (value: string) =>
     hour: '2-digit',
     minute: '2-digit',
   })
+
+const totalPlanRows = computed(() => plans.value.reduce((total, item) => total + (item._count?.rows ?? 0), 0))
 
 const loadPlans = async () => {
   loading.value = true
@@ -299,6 +316,51 @@ onMounted(loadData)
   gap: 12px;
 }
 
+.filter-card,
+.table-card,
+.summary-card {
+  border-radius: 14px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+}
+
+.summary-label {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.teaching-table {
+  --el-table-row-hover-bg-color: rgba(14, 116, 144, 0.08);
+}
+
+.action-button {
+  min-width: 64px;
+}
+
+.action-button-edit,
+.action-button-detail {
+  border-color: rgba(14, 116, 144, 0.24);
+  background: rgba(14, 116, 144, 0.08);
+  color: #0f766e;
+}
+
+.action-button-detail {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+}
+
 @media (max-width: 900px) {
   .page-header {
     flex-direction: column;
@@ -307,6 +369,10 @@ onMounted(loadData)
   .header-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .summary-strip {
+    grid-template-columns: 1fr;
   }
 }
 </style>

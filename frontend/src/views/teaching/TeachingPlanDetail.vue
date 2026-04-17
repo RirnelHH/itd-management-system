@@ -14,7 +14,7 @@
         <el-button @click="loadData">刷新</el-button>
         <el-button :loading="templateDownloading" @click="handleTemplateDownload">下载原模板</el-button>
         <el-button :loading="exporting" @click="handleExport">导出 Excel</el-button>
-        <el-button :loading="importing" @click="triggerImport">导入 Excel</el-button>
+        <el-button type="primary" :loading="importing" @click="triggerImport">导入 Excel</el-button>
       </div>
     </div>
 
@@ -35,15 +35,32 @@
       description="停用课程会继续展示；如需修改课程，请改选启用课程。"
     />
 
-    <el-alert
-      v-if="importStatus"
-      :type="importStatus.type"
-      show-icon
-      :closable="true"
-      :title="importStatus.title"
-      :description="importStatus.description"
-      @close="importStatus = null"
-    />
+    <el-card v-if="importStatus" class="feedback-card" :class="`feedback-card-${importStatus.type}`">
+      <div class="feedback-header">
+        <div>
+          <div class="feedback-title-row">
+            <strong>{{ importStatus.title }}</strong>
+            <el-tag size="small" :type="importStatus.type === 'success' ? 'success' : 'danger'">{{ importStatus.tag }}</el-tag>
+          </div>
+          <p class="feedback-summary">{{ importStatus.summary }}</p>
+        </div>
+        <el-button link @click="importStatus = null">收起</el-button>
+      </div>
+
+      <div v-if="importStatus.meta.length" class="feedback-meta-grid">
+        <div v-for="item in importStatus.meta" :key="item.label" class="feedback-meta-item">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
+      </div>
+
+      <div v-if="importStatus.details.length" class="feedback-detail-block">
+        <strong class="feedback-detail-title">{{ importStatus.type === 'success' ? '导入分布' : '问题明细' }}</strong>
+        <ul class="feedback-detail-list">
+          <li v-for="detail in importStatus.details" :key="detail">{{ detail }}</li>
+        </ul>
+      </div>
+    </el-card>
 
     <el-card v-loading="loading" class="summary-card">
       <template v-if="plan">
@@ -64,6 +81,14 @@
             <span class="summary-label">更新时间</span>
             <strong>{{ formatDateTime(plan.updatedAt) }}</strong>
           </div>
+          <div class="summary-item">
+            <span class="summary-label">已填槽位</span>
+            <strong>{{ filledSlotCount }} / {{ totalSlotCount }}</strong>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">待填槽位</span>
+            <strong>{{ emptySlotCount }}</strong>
+          </div>
         </div>
       </template>
     </el-card>
@@ -71,15 +96,43 @@
     <el-card class="table-card">
       <template #header>
         <div class="table-header">
-          <div>
+          <div class="table-header-main">
             <strong>教学计划总表</strong>
-            <span class="table-meta">{{ plan?.rows.length || 0 }} 行</span>
+            <span class="table-meta">{{ plan?.rows.length || 0 }} 行，按正式模板固定槽位维护</span>
           </div>
           <span class="table-meta">导入会整表覆盖当前数据；导出严格按正式模板固定位置回填。</span>
         </div>
       </template>
 
       <template v-if="plan">
+        <div class="term-overview-grid">
+          <button
+            v-for="section in termSections"
+            :key="section.key"
+            type="button"
+            class="term-overview-card"
+            :class="{
+              internship: section.termType === 'INTERNSHIP',
+              active: activeCellKey.startsWith(`${section.termType}-${section.termNo}-`),
+            }"
+            @click="handleSectionPrimaryAction(section)"
+          >
+            <div class="term-overview-top">
+              <strong>{{ section.shortTitle }}</strong>
+              <el-tag size="small" :type="section.termType === 'INTERNSHIP' ? 'warning' : 'success'">
+                {{ section.termType === 'INTERNSHIP' ? '岗位实习' : '校内课程' }}
+              </el-tag>
+            </div>
+            <div class="term-overview-count">
+              {{ section.rows.length }} / {{ section.slotCount }}
+              <span>{{ section.termType === 'INTERNSHIP' ? '栏位' : '课程槽位' }}</span>
+            </div>
+            <div class="term-overview-action">
+              {{ hasAvailableSlot(section) ? '新增课程' : '查看已填槽位' }}
+            </div>
+          </button>
+        </div>
+
         <div class="matrix-wrapper">
           <table class="plan-matrix">
             <thead>
@@ -90,8 +143,26 @@
                   :key="section.key"
                   :class="{ internship: section.termType === 'INTERNSHIP' }"
                 >
-                  <div class="term-title">{{ section.shortTitle }}</div>
-                  <div class="term-subtitle">{{ section.termType === 'INTERNSHIP' ? '实习栏位' : '校内课程栏位' }}</div>
+                  <div class="term-heading">
+                    <div>
+                      <div class="term-title">{{ section.shortTitle }}</div>
+                      <div class="term-subtitle">
+                        {{ section.termType === 'INTERNSHIP' ? '实习栏位' : '校内课程栏位' }}
+                      </div>
+                    </div>
+                    <div class="term-heading-actions">
+                      <span class="term-count">{{ section.rows.length }} / {{ section.slotCount }}</span>
+                      <el-button
+                        size="small"
+                        type="primary"
+                        plain
+                        :disabled="isEditing || !hasAvailableSlot(section)"
+                        @click="startCreateInSection(section)"
+                      >
+                        新增
+                      </el-button>
+                    </div>
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -101,6 +172,7 @@
                 <td
                   v-for="section in termSections"
                   :key="`${section.key}-${slotIndex}`"
+                  :data-cell-key="buildCellKey(section, slotIndex)"
                   :class="{
                     unused: slotIndex > section.slotCount,
                     editing: isEditingCell(section, slotIndex),
@@ -166,11 +238,7 @@
                     <div v-if="getCellRow(section, slotIndex)" class="course-card">
                       <div class="course-card-header">
                         <strong>{{ getCellRow(section, slotIndex)?.courseName }}</strong>
-                        <el-tag
-                          v-if="getCellRow(section, slotIndex)?.courseId === null"
-                          size="small"
-                          type="info"
-                        >
+                        <el-tag v-if="getCellRow(section, slotIndex)?.courseId === null" size="small" type="info">
                           课程已删除
                         </el-tag>
                         <el-tag
@@ -191,13 +259,19 @@
                       <p class="course-remark">{{ getCellRow(section, slotIndex)?.remark || '无备注' }}</p>
 
                       <div class="cell-actions">
-                        <el-button size="small" type="primary" link :disabled="isEditing" @click="startEditCell(section, slotIndex)">
+                        <el-button
+                          size="small"
+                          type="primary"
+                          plain
+                          :disabled="isEditing"
+                          @click="startEditCell(section, slotIndex)"
+                        >
                           编辑
                         </el-button>
                         <el-button
                           size="small"
                           type="danger"
-                          link
+                          plain
                           :disabled="isEditing"
                           @click="handleDelete(getCellRow(section, slotIndex)!)"
                         >
@@ -207,9 +281,16 @@
                     </div>
 
                     <div v-else class="empty-cell">
-                      <span>空</span>
-                      <el-button size="small" type="primary" plain :disabled="isEditing" @click="startCreateCell(section, slotIndex)">
-                        填写
+                      <strong>暂无课程</strong>
+                      <span class="empty-cell-hint">点击新增，直接在当前学期第 {{ slotIndex }} 槽位填写课程。</span>
+                      <el-button
+                        size="small"
+                        type="primary"
+                        plain
+                        :disabled="isEditing"
+                        @click="startCreateCell(section, slotIndex)"
+                      >
+                        新增课程
                       </el-button>
                     </div>
                   </template>
@@ -239,9 +320,9 @@ import {
   importTeachingPlanExcelRequest,
   updateTeachingPlanRowRequest,
 } from '../../api/teaching'
-import { getCourseTypeLabel } from '../../constants/teaching'
+import { getCourseTypeLabel, getEducationSystemLabel } from '../../constants/teaching'
 import type { Course, TeachingPlanDetail, TeachingPlanRow, TeachingPlanTermType } from '../../types/teaching'
-import { extractErrorMessage, isDialogCancel } from '../../utils/api'
+import { extractErrorMessage, extractErrorMessages, isDialogCancel } from '../../utils/api'
 import {
   buildTeachingPlanSelectableCourses,
   buildTeachingPlanTermSchema,
@@ -253,6 +334,15 @@ import {
 type TermSection = ReturnType<typeof buildTeachingPlanTermSchema>[number] & {
   shortTitle: string
   rows: TeachingPlanRow[]
+}
+
+type ImportStatus = {
+  type: 'success' | 'error'
+  title: string
+  tag: string
+  summary: string
+  details: string[]
+  meta: Array<{ label: string; value: string }>
 }
 
 const route = useRoute()
@@ -269,7 +359,7 @@ const courses = ref<Course[]>([])
 const editingRowId = ref('')
 const originalCourseId = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement>()
-const importStatus = ref<null | { type: 'success' | 'error'; title: string; description: string }>(null)
+const importStatus = ref<ImportStatus | null>(null)
 const activeCellKey = ref('')
 const isCreating = ref(false)
 
@@ -328,6 +418,14 @@ const maxSlotCount = computed(() =>
   Math.max(...termSections.value.map((section) => section.slotCount), 1),
 )
 
+const totalSlotCount = computed(() =>
+  termSections.value.reduce((total, section) => total + section.slotCount, 0),
+)
+
+const filledSlotCount = computed(() => plan.value?.rows.length || 0)
+
+const emptySlotCount = computed(() => Math.max(totalSlotCount.value - filledSlotCount.value, 0))
+
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString('zh-CN', {
     year: 'numeric',
@@ -350,6 +448,10 @@ const buildCourseOptionLabel = (course: Course) => {
   const weeklyHours = course.weeklyHours ? ` / ${course.weeklyHours}课时` : ' / 未设周课时'
   return `${course.name}${majorName}${weeklyHours}${status}`
 }
+
+const hasAvailableSlot = (section: TermSection) => section.rows.length < section.slotCount
+
+const getNextAvailableSlot = (section: TermSection) => section.rows.length + 1
 
 const resolveMajorName = (row: TeachingPlanRow) =>
   row.course?.major?.name || (row.course?.courseType === 'PUBLIC' ? '公共课' : plan.value?.grade?.major?.name || '-')
@@ -429,6 +531,30 @@ const startCreateCell = (section: TermSection, slotIndex: number) => {
   draftForm.sortOrder = slotIndex - 1
 }
 
+const startCreateInSection = (section: TermSection) => {
+  if (!hasAvailableSlot(section)) {
+    ElMessage.warning(`${section.shortTitle} 已无可新增槽位，请先调整现有课程`)
+    return
+  }
+
+  startCreateCell(section, getNextAvailableSlot(section))
+}
+
+const handleSectionPrimaryAction = (section: TermSection) => {
+  if (hasAvailableSlot(section) && !isEditing.value) {
+    startCreateInSection(section)
+    return
+  }
+
+  const targetSlot = section.rows.length > 0 ? 1 : getNextAvailableSlot(section)
+  const targetCellKey = buildCellKey(section, targetSlot)
+  document.querySelector(`[data-cell-key="${targetCellKey}"]`)?.scrollIntoView({
+    block: 'nearest',
+    inline: 'center',
+    behavior: 'smooth',
+  })
+}
+
 const startEditCell = (section: TermSection, slotIndex: number) => {
   if (isEditing.value) {
     return
@@ -501,19 +627,37 @@ const handleFileChange = async (event: Event) => {
     importStatus.value = {
       type: 'success',
       title: '导入成功',
-      description: `${result.message}；源文件：${result.fileName}；模板：${result.templateFileName}`,
+      tag: '已覆盖',
+      summary: result.message,
+      details: result.termSummaries.map((item) => `${item.title}：${item.rowCount} 行`),
+      meta: [
+        { label: '导入文件', value: result.fileName },
+        { label: '使用模板', value: result.templateFileName },
+        { label: '所属学制', value: getEducationSystemLabel(result.educationSystem) },
+        { label: '写入行数', value: String(result.importedRows) },
+        { label: '替换旧行', value: String(result.replacedRows) },
+      ],
     }
-    ElMessage.success(result.message || `成功导入 ${result.importedRows} 行`)
+    ElMessage.success(`导入成功，已写入 ${result.importedRows} 行`)
     resetDraft()
     await loadData()
   } catch (error) {
-    const message = extractErrorMessage(error, '教学计划 Excel 导入失败')
+    const messages = extractErrorMessages(error)
+    const summary = messages[0] || extractErrorMessage(error, '教学计划 Excel 导入失败')
     importStatus.value = {
       type: 'error',
       title: '导入失败',
-      description: message,
+      tag: '需修正',
+      summary,
+      details: messages.slice(1),
+      meta: file
+        ? [
+            { label: '导入文件', value: file.name },
+            { label: '期望模板', value: plan.value?.grade?.educationSystem === 'THREE_YEAR' ? '课程实施计划三年制.xlsx' : '课程实施计划五年制.xlsx' },
+          ]
+        : [],
     }
-    ElMessage.error(message)
+    ElMessage.error(summary)
   } finally {
     importing.value = false
   }
@@ -531,7 +675,7 @@ const handleExport = async () => {
       resolveDownloadFileName(response.headers['content-disposition']) ||
       `${plan.value?.name || 'teaching-plan'}-export.xlsx`
     downloadBlobFile(response.data, fileName)
-    ElMessage.success('教学计划 Excel 导出成功')
+    ElMessage.success(`教学计划 Excel 导出成功：${fileName}`)
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, '教学计划 Excel 导出失败'))
   } finally {
@@ -547,7 +691,7 @@ const handleTemplateDownload = async () => {
       resolveDownloadFileName(response.headers['content-disposition']) ||
       (plan.value?.grade?.educationSystem === 'THREE_YEAR' ? '课程实施计划三年制.xlsx' : '课程实施计划五年制.xlsx')
     downloadBlobFile(response.data, fileName)
-    ElMessage.success('教学计划模板下载成功')
+    ElMessage.success(`教学计划模板下载成功：${fileName}`)
   } catch (error) {
     ElMessage.error(extractErrorMessage(error, '教学计划模板下载失败'))
   } finally {
@@ -666,9 +810,83 @@ onMounted(loadData)
   justify-content: flex-end;
 }
 
+.feedback-card {
+  border-radius: 16px;
+}
+
+.feedback-card-success {
+  border-color: rgba(22, 163, 74, 0.22);
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.95), rgba(255, 255, 255, 0.98));
+}
+
+.feedback-card-error {
+  border-color: rgba(220, 38, 38, 0.22);
+  background: linear-gradient(180deg, rgba(254, 242, 242, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.feedback-header,
+.feedback-title-row,
+.feedback-meta-grid,
+.table-header,
+.term-heading,
+.term-heading-actions,
+.course-card-header,
+.course-meta,
+.cell-actions,
+.editor-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-header,
+.table-header,
+.term-heading,
+.editor-field {
+  justify-content: space-between;
+}
+
+.feedback-summary {
+  margin: 8px 0 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.feedback-meta-grid {
+  margin-top: 16px;
+  gap: 12px;
+}
+
+.feedback-meta-item {
+  min-width: 140px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feedback-meta-item span,
+.feedback-detail-title {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.feedback-detail-block {
+  margin-top: 16px;
+}
+
+.feedback-detail-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.7;
+}
+
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -676,6 +894,10 @@ onMounted(loadData)
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+  border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .summary-label,
@@ -686,11 +908,71 @@ onMounted(loadData)
   font-size: 13px;
 }
 
-.table-header {
+.table-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.term-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.term-overview-card {
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 16px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.term-overview-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.34);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.term-overview-card.internship {
+  background: linear-gradient(180deg, #fffaf0, #ffffff);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.term-overview-card.active {
+  border-color: rgba(37, 99, 235, 0.46);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.term-overview-top {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   align-items: center;
-  gap: 16px;
+}
+
+.term-overview-count {
+  margin-top: 14px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.term-overview-count span,
+.term-overview-action,
+.term-count,
+.empty-cell-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.term-overview-action {
+  margin-top: 12px;
 }
 
 .matrix-wrapper {
@@ -713,9 +995,13 @@ onMounted(loadData)
 }
 
 .plan-matrix thead th {
-  background: #f6f8fb;
+  background: #f7f9fc;
   text-align: left;
   min-width: 220px;
+}
+
+.plan-matrix thead th.internship {
+  background: #fff8eb;
 }
 
 .plan-matrix .slot-column {
@@ -727,6 +1013,15 @@ onMounted(loadData)
 .term-title {
   font-size: 15px;
   font-weight: 700;
+}
+
+.term-heading {
+  align-items: flex-start;
+}
+
+.term-heading-actions {
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .unused-cell {
@@ -745,21 +1040,23 @@ onMounted(loadData)
   display: flex;
   flex-direction: column;
   gap: 10px;
+  border-radius: 12px;
 }
 
 .empty-cell {
   justify-content: center;
   align-items: flex-start;
   color: var(--text-muted);
+  padding: 12px;
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+  border: 1px dashed rgba(59, 130, 246, 0.24);
 }
 
-.course-card-header,
-.course-meta,
-.cell-actions,
-.editor-field {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.course-card,
+.cell-editor {
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .course-card-header {
@@ -776,14 +1073,11 @@ onMounted(loadData)
   font-size: 13px;
   line-height: 1.6;
   color: #334155;
+  white-space: pre-wrap;
 }
 
 .editor-label {
   font-weight: 600;
-}
-
-.editor-field {
-  justify-content: space-between;
 }
 
 .warning-text {

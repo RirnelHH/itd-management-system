@@ -155,7 +155,10 @@ test('TeachingPlanExcelService: 模板周节数与课程库不一致会被阻断
     }),
     (error: any) => {
       assert.ok(error instanceof BadRequestException);
-      assert.match(error.message, /模板周节数为 6/);
+      const response = error.getResponse();
+      const messages = Array.isArray(response?.message) ? response.message : [error.message];
+      assert.match(messages[0], /导入失败，共发现 1 处问题/);
+      assert.match(messages[1], /模板周节数为 6/);
       return true;
     },
   );
@@ -203,6 +206,10 @@ test('TeachingPlanExcelService: 成功导入会替换原计划行并返回模板
   assert.equal(result.importedRows, 2);
   assert.equal(result.replacedRows, 1);
   assert.equal(result.templateFileName, '课程实施计划五年制.xlsx');
+  assert.deepEqual(result.termSummaries, [
+    { termNo: 1, termType: 'SCHOOL', title: '第一学期', rowCount: 1 },
+    { termNo: 9, termType: 'INTERNSHIP', title: '第九学期', rowCount: 1 },
+  ]);
   assert.equal(prisma.$transaction.calls.length, 1);
   assert.equal(prisma.teachingPlanRow.deleteMany.calls.length, 1);
   assert.equal(prisma.teachingPlanRow.createMany.calls.length, 1);

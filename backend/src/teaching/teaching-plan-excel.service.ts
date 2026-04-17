@@ -30,6 +30,7 @@ type TemplateLayout = {
 type ParsedImportRow = {
   termNo: number;
   termType: TeachingPlanTermType;
+  termTitle: string;
   courseId: string;
   courseName: string;
   weeklyHoursRaw: string;
@@ -218,11 +219,14 @@ export class TeachingPlanExcelService {
       }
     });
 
+    const termSummaries = this.buildImportTermSummaries(parsedRows);
+
     return {
       success: true,
       message: `教学计划导入成功，已按${TEMPLATE_FILE_NAMES[educationSystem]}模板写入 ${parsedRows.length} 行，并替换原有 ${plan.rows.length} 行`,
       importedRows: parsedRows.length,
       replacedRows: plan.rows.length,
+      termSummaries,
       educationSystem,
       templateFileName: TEMPLATE_FILE_NAMES[educationSystem],
       fileName: file.originalname,
@@ -371,6 +375,7 @@ export class TeachingPlanExcelService {
 
     for (const term of layout.terms) {
       term.rowSlots.forEach((rowNo, index) => {
+        const cellLabel = this.describeTemplateSlot(term, rowNo, index);
         const courseName = this.getCellText(worksheet.getCell(rowNo, term.courseColumn));
         const weeklyHoursRaw = this.getCellText(worksheet.getCell(rowNo, term.weeklyHoursColumn));
         const remark = term.remarkColumn ? this.getCellText(worksheet.getCell(rowNo, term.remarkColumn)) : '';
@@ -382,11 +387,11 @@ export class TeachingPlanExcelService {
         const rowErrors: string[] = [];
         const termRuleError = this.validateTermRule(options.educationSystem, term.termNo, term.termType);
         if (termRuleError) {
-          rowErrors.push(`第 ${rowNo} 行：${termRuleError}`);
+          rowErrors.push(`${cellLabel}：${termRuleError}`);
         }
 
         if (!courseName) {
-          rowErrors.push(`第 ${rowNo} 行：${term.title}课程名称不能为空`);
+          rowErrors.push(`${cellLabel}：课程名称为空，请填写课程库中的课程名称`);
         }
 
         const course = courseName
@@ -394,25 +399,25 @@ export class TeachingPlanExcelService {
           : { error: '课程名称不能为空' };
 
         if ('error' in course) {
-          rowErrors.push(`第 ${rowNo} 行：${course.error}`);
+          rowErrors.push(`${cellLabel}：${course.error}`);
         }
 
         if (!('error' in course) && course.weeklyHours == null) {
-          rowErrors.push(`第 ${rowNo} 行：课程“${course.name}”未维护周课时，无法自动带出`);
+          rowErrors.push(`${cellLabel}：课程“${course.name}”未维护周课时，无法自动带出`);
         }
 
         if (!('error' in course) && !weeklyHoursRaw.trim()) {
-          rowErrors.push(`第 ${rowNo} 行：${term.title}周节数不能为空`);
+          rowErrors.push(`${cellLabel}：周节数为空，请保持与课程库周课时一致`);
         }
 
         if (!('error' in course) && weeklyHoursRaw.trim()) {
           const normalizedTemplateHours = this.normalizeWeeklyHours(weeklyHoursRaw);
           const normalizedCourseHours = this.normalizeWeeklyHours(course.weeklyHours?.toString() || '');
           if (!normalizedTemplateHours) {
-            rowErrors.push(`第 ${rowNo} 行：周节数格式无法识别`);
+            rowErrors.push(`${cellLabel}：周节数格式无法识别，请填写数字或“30节×18周”这类可提取数字的格式`);
           } else if (!normalizedCourseHours || normalizedTemplateHours !== normalizedCourseHours) {
             rowErrors.push(
-              `第 ${rowNo} 行：模板周节数为 ${weeklyHoursRaw}，但课程库“${course.name}”周课时为 ${course.weeklyHours?.toString() || '-'}，请先修正课程主数据或模板内容`,
+              `${cellLabel}：模板周节数为 ${weeklyHoursRaw}，但课程库“${course.name}”周课时为 ${course.weeklyHours?.toString() || '-'}，请先修正课程主数据或模板内容`,
             );
           }
         }
@@ -426,6 +431,7 @@ export class TeachingPlanExcelService {
         parsedRows.push({
           termNo: term.termNo,
           termType: term.termType,
+          termTitle: term.title,
           courseId: (course as { id: string }).id,
           courseName: (course as { name: string }).name,
           weeklyHoursRaw: weeklyHours.raw,
@@ -437,7 +443,7 @@ export class TeachingPlanExcelService {
     }
 
     if (errors.length > 0) {
-      throw new BadRequestException(`导入失败：${errors.join('；')}`);
+      throw new BadRequestException(this.buildImportErrorMessages(errors));
     }
 
     return parsedRows;
@@ -459,7 +465,7 @@ export class TeachingPlanExcelService {
     const candidates = allowedCourses.filter((course) => course.name === normalizedCourseName);
 
     if (candidates.length === 0) {
-      return { error: `未找到课程“${normalizedCourseName}”，请先维护课程库（专业：${planMajorName}）` };
+      return { error: `未找到课程“${normalizedCourseName}”，请先维护课程库（当前计划专业：${planMajorName}）` };
     }
 
     if (candidates.length === 1) {
@@ -472,6 +478,42 @@ export class TeachingPlanExcelService {
     }
 
     return { error: `课程“${normalizedCourseName}”匹配到多条启用课程，请先整理课程库名称` };
+  }
+
+  private describeTemplateSlot(term: TemplateTermLayout, rowNo: number, slotIndex: number) {
+    const slotLabel = term.termType === 'INTERNSHIP' ? '实习栏位' : `第 ${slotIndex + 1} 槽位`;
+    return `${term.title}${slotLabel}（模板第 ${rowNo} 行）`;
+  }
+
+  private buildImportErrorMessages(errors: string[]) {
+    const visibleErrors = errors.slice(0, 8);
+    const remainingCount = errors.length - visibleErrors.length;
+
+    return [
+      `导入失败，共发现 ${errors.length} 处问题，请按提示修正模板后重试`,
+      ...visibleErrors.map((error, index) => `${index + 1}. ${error}`),
+      ...(remainingCount > 0 ? [`其余 ${remainingCount} 处问题未展开，请继续检查同类模板单元格`] : []),
+    ];
+  }
+
+  private buildImportTermSummaries(rows: ParsedImportRow[]) {
+    const summaryMap = new Map<string, { termNo: number; termType: TeachingPlanTermType; title: string; rowCount: number }>();
+
+    rows.forEach((row) => {
+      const key = this.buildTermKey(row.termNo, row.termType);
+      const current =
+        summaryMap.get(key) || {
+          termNo: row.termNo,
+          termType: row.termType,
+          title: row.termTitle,
+          rowCount: 0,
+        };
+
+      current.rowCount += 1;
+      summaryMap.set(key, current);
+    });
+
+    return Array.from(summaryMap.values()).sort((left, right) => left.termNo - right.termNo);
   }
 
   private writeTitle(worksheet: ExcelJS.Worksheet, cellAddress: string, majorName: string, gradeName: string) {
